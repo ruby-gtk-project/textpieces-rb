@@ -1,0 +1,18 @@
+[Icon Theme]
+Name=Text Pieces
+Comment=Icons shipped with Text Pieces
+Directories=scalable/apps,scalable/status
+
+[scalable/apps]
+Size=128
+MinSize=16
+MaxSize=512
+Context=Applications
+Type=Scalable
+
+[scalable/status]
+Size=16
+MinSize=16
+MaxSize=512
+Context=Status
+Type=Scalable

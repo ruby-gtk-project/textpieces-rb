@@ -110,11 +110,17 @@
         # directory keeps this flake generic: no name to keep in step by hand.
         launcher = builtins.head (builtins.attrNames (builtins.readDir ./exe));
 
+        # The tool scripts run as child processes of the app, so the
+        # interpreters and the coreutils they call have to be on PATH wherever
+        # it runs — the dev shell and the wrapper both get them.
+        toolRuntime = with pkgs; [ python3 bash coreutils ];
+
         # Optional directories: a port that has not grown translations or data
         # assets yet simply has none.
         optionalDirs = builtins.filter (d: builtins.pathExists (./. + "/${d}")) [
           "data"
           "po"
+          "scripts"
         ];
       in
       {
@@ -160,6 +166,7 @@
               --add-flags "-I$out/share/textpieces/lib" \
               --add-flags "$out/share/textpieces/exe/${launcher}" \
               --set GI_TYPELIB_PATH "${typelibPath}" \
+              --prefix PATH : "${pkgs.lib.makeBinPath toolRuntime}" \
               --prefix XDG_DATA_DIRS : "$out/share" \
               --prefix XDG_DATA_DIRS : "$out/share/gsettings-schemas/textpieces-0.1.0" \
               --prefix XDG_DATA_DIRS : "${pkgs.gsettings-desktop-schemas}/share/gsettings-schemas/${pkgs.gsettings-desktop-schemas.name}" \
@@ -201,7 +208,7 @@
             pkgs.xvfb-run
             pkgs.gsettings-desktop-schemas
             pkgs.adwaita-icon-theme
-          ] ++ gtkStack;
+          ] ++ gtkStack ++ toolRuntime;
 
           # Icons, GSettings schemas and the GTK portal all resolve through
           # XDG_DATA_DIRS; without these the window opens with blank icons.

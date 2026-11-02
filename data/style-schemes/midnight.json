@@ -1,0 +1,15 @@
+{
+  "id": "midnight",
+  "name": "Midnight",
+  "description": "Cool dark tones",
+  "metadata": {
+    "variant": "dark",
+    "accent_color": "#7aa2f7"
+  },
+  "styles": {
+    "text": { "background": "#171a22", "foreground": "#d4d7e0" },
+    "selection": { "background": "#3b5bdb", "foreground": "#ffffff" },
+    "right-margin": { "background": "#1f2430" },
+    "current-line": { "background": "#1f2430" }
+  }
+}
