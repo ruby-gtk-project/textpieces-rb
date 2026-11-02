@@ -8,10 +8,18 @@ cannot show.
 
 Upstream is 11 Vala files, 10 blueprints, one GSettings schema, one GResource
 manifest, two stylesheets, 36 bundled tool scripts and two gettext catalogues.
-`lib/` on `ruby` currently holds **one** file of app code —
-`lib/textpieces/application.rb`, a placeholder window with an
-`Adw.StatusPage` saying the port is not written. **Every user-facing component
-below is missing.**
+
+`lib/` on `ruby` now holds **25 files** of app code: every one of the 30 units
+in the map below has a port file, and the bundled data (`data/tools.json`, the
+37 `scripts/`, `data/style-schemes/`, `data/icons/`) and the `po/` catalogues
+are in place as well. **Every user-facing component below exists**; what is
+left is per-component parity detail, not missing units, so this inventory is
+now the checklist a `component-parity` pass runs against rather than a list of
+work not started.
+
+Five port files have no single upstream counterpart — they exist because the
+Ruby bindings lack what upstream imports. They are listed under *Port-only
+support units* below.
 
 ## Scope note
 
@@ -20,9 +28,13 @@ below is missing.**
 `GtkSource.View`, `GtkSource.Buffer`, `GtkSource.SearchContext`,
 `GtkSource.SearchSettings`, `GtkSource.StyleScheme`,
 `GtkSource.StyleSchemeManager` and `GtkSource.StyleSchemeChooserWidget`. There
-is no GtkSourceView-free path to parity: the editor, the find/replace bar and
-the whole Appearance preferences group are built on it. Confirm the typelib is
-in the dev shell before the first unit.
+GtkSourceView has **no Ruby bindings at all**, so none of it could be
+imported. The port reproduces the behaviour instead: `Gtk::TextView` over a
+plain `Gtk::TextBuffer` for the editor, `lib/search_context.rb` for the search
+context and settings, `lib/style_scheme.rb` plus `data/style-schemes/*.json`
+for the schemes, and a hand-built chooser in `lib/preferences.rb`. Syntax
+highlighting is the one thing not reproduced — upstream does not use it either
+(the editor shows plain text), so this costs no parity.
 
 ---
 
@@ -30,36 +42,36 @@ in the dev shell before the first unit.
 
 | # | Upstream | → port file | Kind | Exists |
 |--:|---|---|---|---|
-| 1 | `src/Application.vala` | `lib/textpieces/application.rb` | application | stub only |
-| 2 | `src/widgets/Window.vala` + `resources/ui/Window.blp` | `lib/window.rb` | window | no |
-| 3 | `resources/ui/Window.blp` (`menu app-menu`) | `lib/window.rb` | menu | no |
-| 4 | `src/widgets/Window.vala` (`action_about`) | `lib/window.rb` | dialog | no |
-| 5 | `src/widgets/Window.vala` (`action_save_as`, `action_load_file`) | `lib/window.rb` | dialog | no |
-| 6 | `src/widgets/Window.vala` (`load_from`, `action_save_as` catch) | `lib/window.rb` | error state | no |
-| 7 | `src/widgets/Editor.vala` + `resources/ui/Editor.blp` | `lib/editor.rb` | widget | no |
-| 8 | `src/widgets/Search.vala` + `resources/ui/Search.blp` | `lib/search.rb` | page | no |
-| 9 | `resources/ui/Search.blp` (placeholder stack page) | `lib/search.rb` | empty state | no |
-| 10 | `src/tools/Tool.vala` (`build_list_row`) | `lib/tool_row.rb` | row | no |
-| 11 | `src/widgets/SearchBar.vala` + `resources/ui/SearchBar.blp` | `lib/search_bar.rb` | widget | no |
-| 12 | `src/widgets/SearchEntry.vala` + `resources/ui/SearchEntry.blp` | `lib/search_entry.rb` | widget | no |
-| 13 | `src/widgets/preferences/Preferences.vala` + `resources/ui/Preferences.blp` | `lib/preferences.rb` | window | no |
-| 14 | `resources/ui/Preferences.blp` (custom-tools empty page) | `lib/preferences.rb` | empty state | no |
-| 15 | `src/widgets/preferences/Preferences.vala` (custom tools `bind_model`) | `lib/custom_tool_row.rb` | row | no |
-| 16 | `src/widgets/preferences/Preferences.vala` (`action_select_font`) | `lib/preferences.rb` | dialog | no |
-| 17 | `src/widgets/preferences/ToolSettings.vala` + `resources/ui/ToolSettings.blp` | `lib/tool_settings.rb` | widget | no |
-| 18 | `src/widgets/preferences/ToolSettings.vala` (`argument_list` `bind_model`) | `lib/argument_row.rb` | row | no |
-| 19 | `src/widgets/preferences/pages/CustomToolPage.vala` + `.blp` | `lib/custom_tool_page.rb` | page | no |
-| 20 | `src/widgets/preferences/pages/NewToolPage.vala` + `.blp` | `lib/new_tool_page.rb` | page | no |
-| 21 | `resources/ui/ShortcutsWindow.blp` | `lib/shortcuts_window.rb` | window | no |
-| 22 | `src/Application.vala` (`ACTION_ACCELS`) | `lib/textpieces/application.rb` | shortcuts | no |
-| 23 | `src/tools/Tool.vala` | `lib/tool.rb` | model | no |
-| 24 | `src/tools/ToolsController.vala` | `lib/tools_controller.rb` | model | no |
-| 25 | `src/utils/Recoloring.vala` | `lib/recoloring.rb` | style | no |
-| 26 | `src/utils/Utils.vala` | `lib/utils.rb` | util | no |
-| 27 | `data/com.github.liferooter.textpieces.gschema.xml` | `lib/settings.rb` | settings | no |
-| 28 | `resources/style.css` | `lib/style.rb` | stylesheet | no |
-| 29 | `data/tools.json` + `scripts/*` | `data/tools.json`, `scripts/` | data | no |
-| 30 | `po/textpieces.pot`, `po/tools.pot`, `po/{es,nl,pt_BR}.po` | `po/` | translations | no |
+| 1 | `src/Application.vala` | `lib/textpieces/application.rb` | application | yes |
+| 2 | `src/widgets/Window.vala` + `resources/ui/Window.blp` | `lib/window.rb` | window | yes |
+| 3 | `resources/ui/Window.blp` (`menu app-menu`) | `lib/window.rb` | menu | yes |
+| 4 | `src/widgets/Window.vala` (`action_about`) | `lib/window.rb` | dialog | yes |
+| 5 | `src/widgets/Window.vala` (`action_save_as`, `action_load_file`) | `lib/window.rb` | dialog | yes |
+| 6 | `src/widgets/Window.vala` (`load_from`, `action_save_as` catch) | `lib/window.rb` | error state | yes |
+| 7 | `src/widgets/Editor.vala` + `resources/ui/Editor.blp` | `lib/editor.rb` | widget | yes |
+| 8 | `src/widgets/Search.vala` + `resources/ui/Search.blp` | `lib/search.rb` | page | yes |
+| 9 | `resources/ui/Search.blp` (placeholder stack page) | `lib/search.rb` | empty state | yes |
+| 10 | `src/tools/Tool.vala` (`build_list_row`) | `lib/tool_row.rb` | row | yes |
+| 11 | `src/widgets/SearchBar.vala` + `resources/ui/SearchBar.blp` | `lib/search_bar.rb` | widget | yes |
+| 12 | `src/widgets/SearchEntry.vala` + `resources/ui/SearchEntry.blp` | `lib/search_entry.rb` | widget | yes |
+| 13 | `src/widgets/preferences/Preferences.vala` + `resources/ui/Preferences.blp` | `lib/preferences.rb` | window | yes |
+| 14 | `resources/ui/Preferences.blp` (custom-tools empty page) | `lib/preferences.rb` | empty state | yes |
+| 15 | `src/widgets/preferences/Preferences.vala` (custom tools `bind_model`) | `lib/custom_tool_row.rb` | row | yes |
+| 16 | `src/widgets/preferences/Preferences.vala` (`action_select_font`) | `lib/preferences.rb` | dialog | yes |
+| 17 | `src/widgets/preferences/ToolSettings.vala` + `resources/ui/ToolSettings.blp` | `lib/tool_settings.rb` | widget | yes |
+| 18 | `src/widgets/preferences/ToolSettings.vala` (`argument_list` `bind_model`) | `lib/argument_row.rb` | row | yes |
+| 19 | `src/widgets/preferences/pages/CustomToolPage.vala` + `.blp` | `lib/custom_tool_page.rb` | page | yes |
+| 20 | `src/widgets/preferences/pages/NewToolPage.vala` + `.blp` | `lib/new_tool_page.rb` | page | yes |
+| 21 | `resources/ui/ShortcutsWindow.blp` | `lib/shortcuts_window.rb` | window | yes |
+| 22 | `src/Application.vala` (`ACTION_ACCELS`) | `lib/textpieces/application.rb` | shortcuts | yes |
+| 23 | `src/tools/Tool.vala` | `lib/tool.rb` | model | yes |
+| 24 | `src/tools/ToolsController.vala` | `lib/tools_controller.rb` | model | yes |
+| 25 | `src/utils/Recoloring.vala` | `lib/recoloring.rb` | style | yes |
+| 26 | `src/utils/Utils.vala` | `lib/utils.rb` | util | yes |
+| 27 | `data/com.github.liferooter.textpieces.gschema.xml` | `lib/settings.rb` | settings | yes |
+| 28 | `resources/style.css` | `lib/style.rb` | stylesheet | yes |
+| 29 | `data/tools.json` + `scripts/*` | `data/tools.json`, `scripts/` | data | yes |
+| 30 | `po/textpieces.pot`, `po/tools.pot`, `po/{es,nl,pt_BR}.po` | `po/` | translations | yes |
 
 ---
 
@@ -434,18 +446,74 @@ same groups and items.
 
 ---
 
-## Suggested port order
+## Port-only support units
 
-1. `lib/settings.rb`, `lib/utils.rb`, `lib/tool.rb`, `lib/tools_controller.rb`
-   plus `data/tools.json` and `scripts/` — nothing on screen works without the
-   tool model.
-2. `lib/editor.rb` and `lib/style.rb` — the editor is the app.
-3. `lib/window.rb` with its menu, the About dialog, the file choosers and the
-   error dialog, and the accelerators in `lib/textpieces/application.rb`.
-4. `lib/tool_row.rb` + `lib/search.rb` — tool selection, with the irrelevance
-   ranking and the empty state.
-5. `lib/search_entry.rb` + `lib/search_bar.rb` — find/replace.
-6. `lib/settings.rb`-driven `lib/preferences.rb`, `lib/custom_tool_row.rb`,
-   `lib/tool_settings.rb`, `lib/argument_row.rb`, `lib/custom_tool_page.rb`,
-   `lib/new_tool_page.rb`.
-7. `lib/shortcuts_window.rb`, `lib/recoloring.rb`, `po/`.
+Five files in `lib/` map to no single upstream file. Each stands in for
+something upstream imports and the Ruby bindings do not provide; each carries
+the comment saying so.
+
+| Port file | Stands in for | Why |
+|---|---|---|
+| `lib/search_context.rb` | `GtkSource.SearchContext` + `GtkSource.SearchSettings` | no Ruby bindings; reimplemented over `Gtk::TextBuffer` — wrap-around search, highlight tag, occurrence count and position, replace, replace-all, regex / case / whole-word |
+| `lib/style_scheme.rb` | `GtkSource.StyleScheme` + `StyleSchemeManager` | no Ruby bindings; the three members `Recoloring` needs, over the JSON schemes in `data/style-schemes/` |
+| `lib/accelerator.rb` | Blueprint's `Shortcut { trigger: … action: … }` | no Blueprint compiler and no `Gtk::ShortcutTrigger.parse_string`; builds `Gtk::Shortcut` from `Gtk.accelerator_parse` + `Gtk::NamedAction` |
+| `lib/translation.rb` | `gettext` / `dpgettext2(null, "tools", …)` | the two `po/` catalogues and the `tools` context, read in Ruby |
+| `lib/textpieces.rb` | — | the requires entry point |
+
+`lib/preferences.rb` also substitutes `GtkSource.StyleSchemeChooserWidget`
+(unbound) with a hand-built chooser, and `lib/shortcuts_window.rb` substitutes
+the unbindable `Gtk.ShortcutsWindow` with `Adwaita::ShortcutsDialog`.
+
+---
+
+## Scan totals
+
+`component-scan.sh` over upstream (`src/`, `resources/ui/`, `resources/style.css`,
+the gschema) and over `lib/`:
+
+| | rows | widget instances | distinct types | distinct CSS | distinct signals | distinct actions |
+|---|--:|--:|--:|--:|--:|--:|
+| upstream | 209 | 176 | 49 | 9 | 9 | 23 |
+| `lib/` on `ruby` | 198 | 118 | 42 | 11 | 18 | 13 |
+
+Reading the three gaps:
+
+- **CSS: none.** Every class upstream applies is applied in `lib/` too; the
+  port adds one, `entry`, which is `SearchEntry`'s CSS *name* upstream.
+- **Types: 10 upstream names absent from `lib/`,** and every one is an
+  intentional substitution — `Gtk.FontChooserDialog` → `Gtk::FontDialog`,
+  `Gtk.MessageDialog` → `Adwaita::AlertDialog`,
+  `Gtk.ShortcutsSection`/`Group`/`Shortcut` → the `Adwaita::Shortcuts*`
+  family, `GtkSource.Buffer`/`StyleSchemeManager` → `Gtk::TextBuffer` +
+  `lib/style_scheme.rb`, plus `Gtk.Window`/`Gtk.ListBoxRow` reached as
+  superclasses. No upstream widget type is simply unaccounted for.
+- **Instances: 176 vs 118,** which is the expected shape, not a gap of 58
+  widgets: blueprint declares every object in the tree while the house style
+  composes some of them away, and the repeaters (tool rows, argument rows,
+  argument entries) are one memoized method each on the port side.
+
+The signal gap runs the other way (18 vs 9) because the port connects in Ruby
+what blueprint expresses as a property binding.
+
+---
+
+## What a parity pass should check next
+
+The unit list is complete, so the open questions are per-component details —
+the ones this survey flagged while reading both sides:
+
+1. `lib/search.rb` — the `calculate_irrelevance` ranking, term for term,
+   against both the translated and untranslated name and description.
+2. `lib/search_context.rb` — the behaviours it reimplements, especially
+   wrap-around, the occurrence position after an edit, and `replace-all`.
+3. `lib/editor.rb` — `update_editor_margin`'s measured height and scroll
+   correction, the drop target, and the five bound settings.
+4. `lib/window.rb` — all ten window actions plus `show-help-overlay`, the
+   `selected-tool` persistence and reset-when-missing, and the Apply/Copy
+   revealer inversion.
+5. `lib/recoloring.rb` — `is_scheme_dark`'s three tests and the
+   shared/light/dark CSS suffixes, with the Adwaita schemes skipped.
+6. `lib/shortcuts_window.rb` — the five groups and 16 items, including
+   upstream's "Just to the tool options" typo.
+7. `po/` — that both catalogues load and the `tools` context resolves for all
+   36 tools and their 8 argument sets.
