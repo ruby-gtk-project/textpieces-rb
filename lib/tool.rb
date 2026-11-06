@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "gtk4"
+require "ashpd"
 require "open3"
 require "digest"
 require "securerandom"
@@ -143,15 +144,20 @@ class Tool < GLib::Object
     ScriptResult.new(output: nil, error: Utils.escape_markup(e.message))
   end
 
-  # Opens the script in whatever editor the desktop uses for it. Upstream asks
-  # the OpenURI portal for a writable handler; Gtk::FileLauncher is the same
-  # request made through GTK, which goes to the portal inside a sandbox and to
-  # the desktop's handler outside one. Pre-installed tools are not editable.
+  # Opens the script in whatever editor the desktop uses for it, by asking
+  # the OpenURI portal for a writable handler. Ported from upstream's
+  # Tool#open, which asks the same portal through libportal's
+  # `Xdp.Portal#open_uri` with the ASK and WRITABLE flags; ashpd's
+  # Ashpd::OpenUri.open takes the uri, the calling window's identifier and a
+  # writable flag, which together are that request. Pre-installed tools are
+  # not editable.
+  #
+  # ashpd's calls are synchronous and block on the portal's response (the
+  # user choosing an app), so this runs on its own thread rather than
+  # freezing the window while the chooser is open.
   def open(window)
     unless system?
-      Gtk::FileLauncher.new(Gio::File.new_for_path(script_path))
-                       .tap { |launcher| launcher.always_ask = true }
-                       .launch(window, nil) { |launcher, result| finish_launch(launcher, result) }
+      Thread.new { open_with_portal(window) }
     end
   end
 
@@ -180,9 +186,30 @@ class Tool < GLib::Object
       end
     end
 
-    def finish_launch(launcher, result)
-      launcher.launch_finish(result)
-    rescue GLib::Error
+    def open_with_portal(window)
+      Ashpd::OpenUri.open(
+        Gio::File.new_for_path(script_path).uri,
+        window_identifier(window),
+        true,
+      )
+    rescue RuntimeError
+      # The portal has nothing to offer (it isn't running, the request was
+      # cancelled, or no app claims script files) — the same silence
+      # upstream's fire-and-forget `.begin` call leaves the user with.
       nil
+    end
+
+    # The "x11:<window id>" / "wayland:<handle>" identifier the OpenURI
+    # portal uses to parent its chooser dialog to the window that asked for
+    # it, built the way upstream's `Xdp.parent_new_gtk` does for the X11
+    # backend. Wayland's equivalent needs an exported surface handle the
+    # bindings have no call for, so there the portal gets no identifier and
+    # shows the chooser unparented.
+    def window_identifier(window)
+      if defined?(Gdk::X11Surface) && window.surface.is_a?(Gdk::X11Surface)
+        "x11:0x#{window.surface.xid.to_s(16)}"
+      else
+        ""
+      end
     end
 end
