@@ -359,10 +359,7 @@ class Window
       apply_action.enabled = !@selected_tool.nil?
       editor.arguments = @selected_tool&.translated_arguments || []
 
-      GLib::Idle.add do
-        editor.update_editor_margin
-        false
-      end
+      editor.schedule_margin_update
     end
 
     def on_tool_selected(tool)

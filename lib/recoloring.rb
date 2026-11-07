@@ -43,7 +43,7 @@ module Recoloring
     # "-dark" id suffix, and failing both the perceived brightness of the text
     # background (http://alienryderflex.com/hsp.html).
     def scheme_dark?(scheme)
-      case scheme.metadata_value("variant")
+      case scheme.get_metadata("variant")
       when "light"
         false
       when "dark"
@@ -221,10 +221,12 @@ module Recoloring
 
       # A colour from one of the scheme's styles. Upstream drops colours that
       # are nearly transparent, because mixing with them produces nothing
-      # usable.
+      # usable. GtkSource::Style's foreground/background are nil unless the
+      # *_set? flag says the scheme actually set them, same as upstream's
+      # foreground_set/background_set pair.
       def color(scheme, style_name, kind)
-        scheme.style(style_name).then do |style|
-          if style
+        scheme.get_style(style_name).then do |style|
+          if style && style.public_send(:"#{kind}_set?")
             parse(style.public_send(kind)).then do |rgba|
               if rgba && rgba.alpha >= 0.1
                 rgba
@@ -234,7 +236,7 @@ module Recoloring
         end
       end
 
-      def metadata_color(scheme, key) = parse(scheme.metadata_value(key))
+      def metadata_color(scheme, key) = parse(scheme.get_metadata(key))
 
       def parse(text)
         if text.nil?

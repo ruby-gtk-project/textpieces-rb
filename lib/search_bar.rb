@@ -15,9 +15,9 @@ require_relative "translation"
 # group it installs is the same one the template's shortcuts and the main
 # window's find action address.
 #
-# Upstream drives GtkSource.SearchContext and GtkSource.SearchSettings;
-# neither is bound in Ruby, so SearchContext here does that work over the
-# editor's Gtk::TextBuffer.
+# Upstream drives GtkSource.SearchContext and GtkSource.SearchSettings
+# directly; this port's SearchContext wraps the same two classes from
+# `gtksourceview5` so SearchBar and SearchEntry can stay offset/iterator-light.
 class SearchBar
   WINDOW_SHORTCUTS = {
     "<Ctrl>f" => "search.show",

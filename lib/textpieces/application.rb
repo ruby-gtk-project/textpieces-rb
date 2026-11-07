@@ -2,11 +2,11 @@
 
 require "gtk4"
 require "adwaita"
+require "gtksourceview5"
 
 require_relative "../recoloring"
 require_relative "../settings"
 require_relative "../style"
-require_relative "../style_scheme"
 require_relative "../tools_controller"
 require_relative "../window"
 
@@ -151,11 +151,22 @@ module Textpieces
       # Upstream's style_scheme setter: the interface follows the scheme's
       # darkness and the generated CSS redefines the Adwaita colours.
       def apply_style_scheme(id)
-        StyleScheme.find_or_default(id).then do |scheme|
+        find_scheme(id).then do |scheme|
           if scheme
             Adwaita::StyleManager.default.color_scheme = color_scheme(scheme)
             style_scheme_provider.load_from_string(Recoloring.generate_css(scheme))
           end
+        end
+      end
+
+      # The scheme the settings name, falling back to the default and then to
+      # whatever is installed, so a settings file naming a scheme this
+      # install does not have still starts.
+      def find_scheme(id)
+        GtkSource::StyleSchemeManager.default.then do |manager|
+          manager.get_scheme(id.to_s) ||
+            manager.get_scheme("Adwaita-dark") ||
+            manager.get_scheme(manager.scheme_ids.first)
         end
       end
 

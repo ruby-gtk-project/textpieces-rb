@@ -80,8 +80,8 @@ GtkDriver.drive(app, shots: "tmp/shots") do |d, application|
     # default of 6px rather than leaving it unchanged.
     d.check("margin grew") { window.call.editor.view.top_margin > @margin_before_args }
     d.check("margin matches the measured box height") do
-      _, bounds = window.call.editor.arguments_box.compute_bounds(window.call.editor.editor_overlay)
-      window.call.editor.view.top_margin == bounds.height.ceil
+      _, natural, = window.call.editor.arguments_box.measure(:vertical, -1)
+      window.call.editor.view.top_margin == natural
     end
   end
 
@@ -232,11 +232,12 @@ GtkDriver.drive(app, shots: "tmp/shots") do |d, application|
   end
 
   d.step("a style scheme is picked") do
-    window.call.preferences.scheme_listbox.get_row_at_index(3).activate
+    window.call.preferences.scheme_chooser.style_scheme =
+      GtkSource::StyleSchemeManager.default.get_scheme("solarized-light")
   end
 
   d.step("the scheme was applied") do
-    d.check("setting written") { application.settings["style-scheme"] == "sepia" }
+    d.check("setting written") { application.settings["style-scheme"] == "solarized-light" }
     d.check("light scheme forced") do
       Adwaita::StyleManager.default.color_scheme == Adwaita::ColorScheme::FORCE_LIGHT
     end

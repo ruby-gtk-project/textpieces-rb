@@ -103,6 +103,9 @@ Gem::Specification.new do |spec|
   # The OpenURI portal, for editing a custom tool's script in the user's
   # external editor (Tool#open, ported from upstream's Xdp.Portal#open_uri).
   spec.add_dependency("ashpd")
+  # GtkSourceView: the editor's text view/buffer, style schemes and
+  # search context/settings, matching upstream's use of GtkSource.View.
+  spec.add_dependency("gtksourceview5")
 
   # NOTE: It is preferable to list development dependencies in the gemspec due to increased
   #       visibility and discoverability.

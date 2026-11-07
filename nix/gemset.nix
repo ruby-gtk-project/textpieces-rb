@@ -162,6 +162,17 @@
     };
     version = "4.4.0";
   };
+  gtksourceview5 = {
+    dependencies = ["gtk4" "rake"];
+    groups = ["default"];
+    platforms = [];
+    source = {
+      remotes = ["https://rubygems.org"];
+      sha256 = "0ilk7b4lhfibqcfmiz36x8qqcqf5qd71bc460iv9ix37yn306s99";
+      type = "gem";
+    };
+    version = "4.4.0";
+  };
   json = {
     groups = ["default"];
     platforms = [];

@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "adwaita"
+require "gtksourceview5"
 require_relative "search_bar"
 require_relative "translation"
 
@@ -8,15 +9,13 @@ require_relative "translation"
 #
 # Ported from upstream's src/widgets/Editor.vala and
 # resources/ui/Editor.blp: a toast overlay over an overlay, whose main child
-# is the scrolled text view and whose overlay child is the column holding the
-# search bar and the argument entries.
+# is the scrolled GtkSource::View and whose overlay child is the column
+# holding the search bar and the argument entries.
 #
-# Upstream's view is a GtkSource.View, which has no Ruby bindings; this one is
-# a Gtk::TextView. The settings upstream binds to GtkSource properties are
-# applied here instead: the font through a CSS provider as upstream does,
-# wrap-lines through the view's wrap mode, and tabs-to-spaces plus
-# spaces-in-tab through a key handler that inserts the right amount of
-# whitespace for Tab.
+# tabs-to-spaces and spaces-in-tab bind straight onto the view's own
+# insert-spaces-instead-of-tabs and tab-width properties, matching upstream's
+# settings bindings exactly; font-name still goes through a CSS provider, as
+# upstream's editor-font setter does.
 class Editor
   TOAST_TIMEOUT = 2
 
@@ -42,7 +41,6 @@ class Editor
 
       view.tap do |text|
         text.add_controller(drop_target)
-        text.add_controller(tab_controller)
       end
 
       install_font_provider
@@ -127,6 +125,17 @@ class Editor
     end
   end
 
+  # Upstream applies the margin from one Idle turn after the arguments
+  # change (src/widgets/Window.vala); #new_margin reads the box's measured
+  # size rather than its allocation, so that turn is enough regardless of
+  # how many layout passes GtkSource::View's gutter needs to settle.
+  def schedule_margin_update
+    GLib::Idle.add do
+      update_editor_margin
+      false
+    end
+  end
+
   # Memoized widget methods
 
   def toast_overlay = @toast_overlay ||= Adwaita::ToastOverlay.new
@@ -139,11 +148,13 @@ class Editor
   end
 
   def view
-    @view ||= Gtk::TextView.new.tap do |text|
+    @view ||= GtkSource::View.new.tap do |text|
       text.monospace = true
+      text.auto_indent = true
+      text.show_line_numbers = true
+      text.smart_backspace = true
+      text.smart_home_end = :before
       text.top_margin = 6
-      text.left_margin = 6
-      text.right_margin = 6
       text.add_css_class("monospace")
     end
   end
@@ -181,16 +192,6 @@ class Editor
     end
   end
 
-  # Tab inserts spaces when tabs-to-spaces is on, which is the setting
-  # upstream hands to GtkSource.View as insert-spaces-instead-of-tabs.
-  def tab_controller
-    @tab_controller ||= Gtk::EventControllerKey.new.tap do |controller|
-      controller.signal_connect("key-pressed") do |_, keyval, _code, state|
-        on_key_pressed(keyval, state)
-      end
-    end
-  end
-
   private
 
     # Upstream adds the font provider to the editor's own style context;
@@ -212,8 +213,18 @@ class Editor
     def apply_settings
       @settings.subscribe("font-name") { |font| apply_font(font) }
       @settings.subscribe("wrap-lines") { |wrap| apply_wrap(wrap) }
-      @settings.subscribe("tabs-to-spaces") { |spaces| @tabs_to_spaces = spaces }
-      @settings.subscribe("spaces-in-tab") { |width| @spaces_in_tab = width }
+      @settings.subscribe("tabs-to-spaces") { |spaces| view.insert_spaces_instead_of_tabs = spaces }
+      @settings.subscribe("spaces-in-tab") { |width| view.tab_width = width.to_i }
+      @settings.subscribe("style-scheme") { |id| buffer.style_scheme = scheme_for(id) }
+    end
+
+    # Upstream binds the buffer's style-scheme property to the application's;
+    # here each window's editor reads the same shared setting directly, which
+    # has the same end result since there is one Settings instance per app.
+    def scheme_for(id)
+      GtkSource::StyleSchemeManager.default.then do |manager|
+        manager.get_scheme(id.to_s) || manager.get_scheme("Adwaita-dark")
+      end
     end
 
     def apply_font(font)
@@ -230,21 +241,6 @@ class Editor
       else
         view.wrap_mode = :none
       end
-    end
-
-    def on_key_pressed(keyval, state)
-      if keyval == Gdk::Keyval::KEY_Tab && @tabs_to_spaces && plain_modifiers?(state)
-        buffer.insert_at_cursor(" " * @spaces_in_tab.to_i)
-        true
-      else
-        false
-      end
-    end
-
-    def plain_modifiers?(state)
-      (state.to_i & (Gdk::ModifierType::CONTROL_MASK.to_i |
-                     Gdk::ModifierType::ALT_MASK.to_i |
-                     Gdk::ModifierType::SHIFT_MASK.to_i)).zero?
     end
 
     def load_dropped(value)
@@ -317,16 +313,16 @@ class Editor
       end
     end
 
-    # The argument entries float over the first line, so the view's top margin
-    # is their measured height. compute_bounds hands back a success flag and
-    # the rectangle; an unmapped box has neither.
+    # The argument entries float over the first line, so the view's top
+    # margin is their natural height. #measure reads that from the box's own
+    # size request rather than its on-screen allocation, so it is correct
+    # the instant the entries are built — no layout pass has to land first.
     def new_margin
-      arguments_box.compute_bounds(editor_overlay).then do |ok, bounds|
-        if arguments_box.visible? && ok
-          bounds.height.ceil
-        else
-          6
-        end
+      if arguments_box.visible?
+        _, natural, = arguments_box.measure(:vertical, -1)
+        natural
+      else
+        6
       end
     end
 end

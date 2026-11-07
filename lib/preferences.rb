@@ -1,10 +1,10 @@
 # frozen_string_literal: true
 
 require "adwaita"
+require "gtksourceview5"
 require_relative "custom_tool_page"
 require_relative "custom_tool_row"
 require_relative "new_tool_page"
-require_relative "style_scheme"
 require_relative "translation"
 
 # Preferences is the preferences window: the editor settings and the list of
@@ -16,10 +16,12 @@ require_relative "translation"
 # scheme chooser, and a Tools page listing the custom tools with an Add button
 # and a "No Custom Tools" status page in place of an empty list.
 #
-# Upstream's chooser is GtkSource.StyleSchemeChooserWidget, which has no Ruby
-# bindings; the schemes the port ships are listed in a boxed list instead and
-# picking one writes the style-scheme setting, which is what the upstream
-# property binding ends up doing.
+# The style scheme chooser is upstream's own widget,
+# GtkSource.StyleSchemeChooserWidget; picking a scheme writes the
+# style-scheme setting, which is what upstream's bidirectional property
+# binding between the application and the chooser
+# (`Application.instance.bind_property("style-scheme", style_scheme_chooser,
+# "style-scheme", SYNC_CREATE | BIDIRECTIONAL)`) ends up doing.
 class Preferences
   CLAMP_SIZE = 450
   TAB_WIDTH_MIN = 1
@@ -83,8 +85,8 @@ class Preferences
         end
 
         appearance_group.add(scheme_clamp)
-        scheme_clamp.child = scheme_listbox
-        build_scheme_rows
+        scheme_clamp.child = scheme_chooser
+        bind_scheme_chooser
       end
 
       tools_page.add(tools_group)
@@ -217,12 +219,7 @@ class Preferences
     end
   end
 
-  def scheme_listbox
-    @scheme_listbox ||= Gtk::ListBox.new.tap do |list|
-      list.add_css_class("boxed-list")
-      list.selection_mode = :none
-    end
-  end
+  def scheme_chooser = @scheme_chooser ||= GtkSource::StyleSchemeChooserWidget.new
 
   def custom_tools_listbox
     @custom_tools_listbox ||= Gtk::ListBox.new.tap do |list|
@@ -298,38 +295,26 @@ class Preferences
       end
     end
 
-    # One row per shipped style scheme, with a check against the one in use.
-    def build_scheme_rows
-      StyleScheme.all.each do |scheme|
-        scheme_listbox.append(scheme_row(scheme))
-      end
-      mark_selected_scheme(@settings["style-scheme"])
+    # A bidirectional binding between the style-scheme setting and the
+    # chooser, matching upstream's `bind_property(..., SYNC_CREATE |
+    # BIDIRECTIONAL)` between the application and the chooser widget.
+    def bind_scheme_chooser
       @settings.subscribe("style-scheme") { |id| mark_selected_scheme(id) }
-    end
-
-    def scheme_row(scheme)
-      Adwaita::ActionRow.new.tap do |row|
-        row.title = scheme.name
-        row.subtitle = scheme.description.to_s
-        row.activatable = true
-        row.add_suffix(scheme_check(scheme))
-        row.signal_connect("activated") { @settings["style-scheme"] = scheme.id }
-        scheme_rows[scheme.id] = row
+      scheme_chooser.signal_connect("notify::style-scheme") do
+        scheme_chooser.style_scheme.then do |scheme|
+          if scheme
+            @settings["style-scheme"] = scheme.id
+          end
+        end
       end
     end
-
-    def scheme_check(scheme)
-      Gtk::Image.new(icon_name: "object-select-symbolic").tap do |image|
-        image.valign = :center
-        scheme_checks[scheme.id] = image
-      end
-    end
-
-    def scheme_rows = @scheme_rows ||= {}
-    def scheme_checks = @scheme_checks ||= {}
 
     def mark_selected_scheme(id)
-      scheme_checks.each { |scheme_id, image| image.visible = scheme_id == id }
+      GtkSource::StyleSchemeManager.default.get_scheme(id.to_s).then do |scheme|
+        if scheme
+          scheme_chooser.style_scheme = scheme
+        end
+      end
     end
 
     # Upstream's action_select_font asks for a family only and stores its

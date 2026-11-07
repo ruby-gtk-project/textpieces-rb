@@ -1,37 +1,28 @@
 # frozen_string_literal: true
 
-require "gtk4"
+require "gtksourceview5"
 
-# SearchContext finds, highlights and replaces matches in the editor's buffer.
+# SearchContext wraps GtkSource::SearchContext and GtkSource::SearchSettings,
+# the pair upstream's SearchBar drives directly (src/widgets/SearchBar.vala's
+# `search_context` and `search_settings` fields): wrap-around forward/backward
+# search, a highlight toggle bound to the revealer, the occurrences count, the
+# 1-based position of a given range, replace and replace-all, and the
+# regex / case-sensitive / whole-word switches that live on the settings.
 #
-# This is the part of GtkSourceView the port cannot import: upstream's
-# SearchBar drives a GtkSource.SearchContext and a GtkSource.SearchSettings,
-# and neither has Ruby bindings. The behaviour they give the search bar —
-# wrap-around forward and backward search, a highlight tag over every match,
-# an occurrences count, the position of the current match, replace and replace
-# all, and the regex / case-sensitive / whole-word switches — is implemented
-# here over a plain Gtk::TextBuffer.
-#
-# Matches are recomputed from the buffer text whenever the text or the search
-# settings change, and offsets are character offsets, which is what
-# Gtk::TextBuffer#get_iter_at_offset expects.
+# An earlier version of this file reimplemented all of that over a plain
+# Gtk::TextBuffer, on the claim that GtkSourceView has no Ruby bindings — false;
+# `gtksourceview5` ships both classes, so this is now a thin adapter onto them,
+# kept only so SearchBar and SearchEntry do not have to address
+# GtkSource::SearchContext's iterator-based API directly.
 class SearchContext
-  HIGHLIGHT_TAG = "textpieces-search-match"
-
-  attr_reader :buffer, :search_text, :occurrences_count
+  attr_reader :buffer
 
   def initialize(buffer)
     @buffer = buffer
-    @search_text = ""
-    @regex_enabled = false
-    @case_sensitive = false
-    @at_word_boundaries = false
-    @highlight = false
-    @matches = []
-    @occurrences_count = 0
+    @settings = GtkSource::SearchSettings.new.tap { |settings| settings.wrap_around = true }
+    @context = GtkSource::SearchContext.new(buffer, @settings)
     @observers = []
-    @buffer.signal_connect("changed") { recompute }
-    recompute
+    @context.signal_connect("notify::occurrences-count") { notify }
   end
 
   def on_change(&block)
@@ -40,83 +31,62 @@ class SearchContext
   end
 
   def search_text=(value)
-    @search_text = value.to_s
-    recompute
+    @settings.search_text = value.to_s
   end
 
   def regex_enabled=(value)
-    @regex_enabled = value
-    recompute
+    @settings.regex_enabled = value
   end
 
   def case_sensitive=(value)
-    @case_sensitive = value
-    recompute
+    @settings.case_sensitive = value
   end
 
   def at_word_boundaries=(value)
-    @at_word_boundaries = value
-    recompute
+    @settings.at_word_boundaries = value
   end
 
   # Upstream binds the revealer's child-revealed to the context's highlight
   # property, so the matches light up only while the bar is open.
   def highlight=(value)
-    @highlight = value
-    apply_highlight
+    @context.highlight = value
   end
 
-  def highlight? = @highlight
+  def highlight? = @context.highlight?
 
-  # True when the query is a regular expression the engine refused. Upstream's
-  # search settings carry the same condition as a regex_error.
-  def regex_error? = @regex_error
+  # -1 means "not computed yet" (the recompute is asynchronous); nothing in
+  # this app's lifecycle reads the count before the next main-loop turn
+  # settles it, but a defensive floor keeps a stray read honest.
+  def occurrences_count = [@context.occurrences_count, 0].max
 
   # The 1-based position of the match the given range covers, or 0 when the
   # range is not a match — upstream's get_occurrence_position.
   def occurrence_position(start_iter, end_iter)
-    [start_iter.offset, end_iter.offset].minmax.then do |from, to|
-      @matches.index([from, to]).then do |index|
-        if index
-          index + 1
-        else
-          0
-        end
-      end
-    end
+    @context.get_occurrence_position(start_iter, end_iter)
   end
 
   # The first match at or after the offset, wrapping around to the top.
-  def forward(offset)
-    @matches.find { |from, _| from >= offset } || @matches.first
-  end
+  def forward(offset) = iter_match(@context.forward(@buffer.get_iter_at(offset: offset)))
 
   # The last match that ends at or before the offset, wrapping to the bottom.
-  def backward(offset)
-    @matches.reverse.find { |_, to| to <= offset } || @matches.last
-  end
+  def backward(offset) = iter_match(@context.backward(@buffer.get_iter_at(offset: offset)))
 
-  # Replaces one match, named by the range the editor has selected. Returns
-  # false when that range is not a match, which is what upstream's `requires
-  # (occurrence_position > 0)` precondition guards against.
+  # Replaces one match, named by the range the editor has selected. False
+  # when that range is not an actual match (upstream's `requires
+  # (occurrence_position > 0)` precondition) or the engine refuses the
+  # replacement (a backreference the query does not have).
   def replace(start_iter, end_iter, replacement)
-    [start_iter.offset, end_iter.offset].minmax.then do |from, to|
-      if @matches.include?([from, to])
-        replace_range(from, to, replacement_for(from, to, replacement))
-        true
-      else
-        false
-      end
-    end
+    @context.replace(start_iter, end_iter, replacement, -1)
+  rescue GLib::Error
+    false
   end
 
-  # Replaces every match, last first so the earlier offsets stay valid.
+  # Replaces every match. The count replaced, so SearchBar#replace_all can
+  # tell "nothing to replace" from "replaced everything".
   def replace_all(replacement)
-    @matches.length.tap do
-      @matches.reverse.each do |from, to|
-        replace_range(from, to, replacement_for(from, to, replacement))
-      end
-    end
+    @context.replace_all(replacement, -1)
+  rescue GLib::Error
+    0
   end
 
   private
@@ -125,95 +95,10 @@ class SearchContext
       @observers.each { |block| block.call(self) }
     end
 
-    def recompute
-      @matches = compute_matches
-      @occurrences_count = @matches.length
-      apply_highlight
-      notify
-    end
-
-    def compute_matches
-      pattern.then do |regexp|
-        if regexp.nil? || @search_text.empty?
-          []
-        else
-          @buffer.text.to_enum(:scan, regexp).map { Regexp.last_match }
-                 .map { |match| [match.begin(0), match.end(0)] }
-                 .reject { |from, to| from == to }
-        end
+    def iter_match(result)
+      found, start_iter, end_iter, = result
+      if found
+        [start_iter.offset, end_iter.offset]
       end
-    end
-
-    # The search settings, as one regular expression: the literal query is
-    # escaped, word boundaries become \b, and case sensitivity is a flag.
-    def pattern
-      @regex_error = false
-      if @search_text.empty?
-        nil
-      else
-        Regexp.new(bounded(source), flags)
-      end
-    rescue RegexpError
-      @regex_error = true
-      nil
-    end
-
-    def source
-      if @regex_enabled
-        @search_text
-      else
-        Regexp.escape(@search_text)
-      end
-    end
-
-    def bounded(source)
-      if @at_word_boundaries
-        "\\b(?:#{source})\\b"
-      else
-        source
-      end
-    end
-
-    def flags
-      if @case_sensitive
-        Regexp::MULTILINE
-      else
-        Regexp::MULTILINE | Regexp::IGNORECASE
-      end
-    end
-
-    # A regex replacement keeps its backreferences, as upstream's
-    # GtkSource.SearchContext.replace does; a literal one is inserted as typed.
-    def replacement_for(from, to, replacement)
-      if @regex_enabled && pattern
-        @buffer.text[from...to].sub(pattern, replacement)
-      else
-        replacement
-      end
-    end
-
-    def replace_range(from, to, text)
-      @buffer.begin_user_action
-      @buffer.delete(@buffer.get_iter_at(offset: from), @buffer.get_iter_at(offset: to))
-      @buffer.insert(@buffer.get_iter_at(offset: from), text)
-      @buffer.end_user_action
-    end
-
-    def apply_highlight
-      @buffer.remove_tag(highlight_tag, *@buffer.bounds)
-      if @highlight
-        @matches.each do |from, to|
-          @buffer.apply_tag(
-            highlight_tag,
-            @buffer.get_iter_at(offset: from),
-            @buffer.get_iter_at(offset: to),
-          )
-        end
-      end
-    end
-
-    def highlight_tag
-      @highlight_tag ||= @buffer.tag_table.lookup(HIGHLIGHT_TAG) ||
-                         @buffer.create_tag(HIGHLIGHT_TAG, background: "#f9e07f", foreground: "#1d1d1d")
     end
 end

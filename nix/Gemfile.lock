@@ -56,6 +56,9 @@ GEM
       atk (= 4.4.0)
       gdk4 (= 4.4.0)
       gsk4 (= 4.4.0)
+    gtksourceview5 (4.4.0)
+      gtk4 (= 4.4.0)
+      rake
     json (3.1.0)
     matrix (0.4.3)
     native-package-installer (1.1.9)
@@ -83,6 +86,7 @@ DEPENDENCIES
   ashpd
   glib2
   gtk4
+  gtksourceview5
 
 BUNDLED WITH
    2.7.2
