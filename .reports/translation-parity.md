@@ -1,127 +1,142 @@
-# Translation parity — textpieces
+# Translation parity — textpieces — re-audit (2026-11-07)
 
 | | |
 |---|---|
 | Upstream | `main` @ `6a6c41e` |
-| Port | `ruby` @ `ac79adc` |
-| Domain | `textpieces` (po files copied unchanged; `lib/translation.rb` reads `.po` directly, no `.mo`/gettext runtime dependency) |
-| Upstream messages | 237 distinct `(ctxt, id)` keys (233 reach a `.po`; 1 is a dynamic/unresolved call; 3 live only in AppStream metainfo the port does not ship) |
-| Ported (key present in the port's catalogue) | 233 |
-| Gaps | 4 |
-| Extra | 0 |
-| Languages | 3 — `es`, `nl`, `pt_BR` — all 3 shipped by the port, `LINGUAS` identical |
-| Plurals | 0 upstream (`ngettext`/`n_` do not appear anywhere in `src/`) — so the port's `translation.rb` silently discarding `msgid_plural` lines costs nothing *today*, see Finding below |
+| Port | `ruby` @ `f273107` |
+| Domain | `textpieces` (po files copied unchanged; `lib/translation.rb` reads `.po` directly) |
+| Upstream messages | 237 distinct `(ctxt, id)` keys |
+| Ported (key present in the port's catalogue) | 236 |
+| Gaps (upstream key missing from port) | 1 (the same `!unresolved` dynamic call as before — not a real gap, see below) |
+| New gap this pass | 2 strings the port added that are **not in any catalogue at all**, upstream or port |
+| Languages | 3 — `es`, `nl`, `pt_BR` — all 3 shipped, byte-identical to upstream's own `.po` files |
 
-## Census
-
-```
-scripts/msgid-census.sh <upstream> | wc -l   -> 1130 rows (237 distinct keys)
-scripts/msgid-census.sh <port>     | wc -l   -> 1009 rows (233 distinct keys)
-comm -23 up.keys port.keys | wc -l            -> 4   (gaps)
-comm -13 up.keys port.keys | wc -l            -> 0   (extra)
-```
-
-### The 4 gaps
-
-Three are AppStream metainfo description text, all from
-`data/com.github.liferooter.textpieces.appdata.xml.in`:
-
-| msgid | Source |
-|---|---|
-| `Powerful scratchpad with ability to perform a lot of text transformations, such as:` | `data/com.github.liferooter.textpieces.appdata.xml.in` |
-| `The application is extendable with your own script-based actions.` | same |
-| `And so on.` | same |
-
-The port ships **no `data/` metainfo or `.desktop` file at all** — confirmed
-by `find . -iname '*appdata*' -o -iname '*metainfo*' -o -iname '*.desktop*'`
-returning nothing. This is simultaneously a translation gap (3 strings) and a
-component gap (no AppStream entry, no desktop launcher entry, so the app has
-no discoverable name/comment/keywords in a shell that reads `.desktop`
-files — which is also where `Name`, `GenericName`, `Comment`, `Keywords`
-would contribute their own msgids were the file present).
-
-The fourth is `!unresolved`: `src/widgets/preferences/ToolSettings.vala:60`
-calls `_(name)` on a variable, not a literal — upstream translating a tool's
-own name string generically. The port's actual handling of per-tool
-name/description translation (`Translation.tools`, `dpgettext2`-equivalent
-over the `"tools"` context) is correct and verified by reading
-`lib/tool.rb:115-117`; this row is a census artifact of a dynamic call, not
-a missed string, and is recorded here rather than silently dropped per the
-skill's rule on `!unresolved` rows.
-
-## Finding: the generic scanner cannot see the port's own marker convention
-
-Re-run with the kind column broken out:
+## Re-run census
 
 ```
-upstream kind=single/plural (source-derived) : 109
-port     kind=single/plural (source-derived) : 0
+$ .claude/skills/translation-parity/scripts/msgid-census.sh <upstream-main> | wc -l
+1130   (237 distinct keys)
+$ .claude/skills/translation-parity/scripts/msgid-census.sh .           | wc -l
+1094   (249 distinct keys — see "extra" below for why this isn't 236)
+$ comm -23 up.keys port.keys
+!unresolved   _(name); } }  ...
+$ comm -13 up.keys port.keys
+-             _Close
+-             Keyboard Shortcuts
+!unresolved   <11 rows, all Translation.t(...)/Translation.tools(...) call sites the scanner can't parse as literals>
 ```
 
-**Zero.** The port's house convention is `Translation.t(msgid)` and
-`Translation.tools(msgid)` (`lib/translation.rb`), neither of which is in the
-marker set `msgid-census.sh` recognises (`_`, `N_`, `C_`, `NC_`, `ngettext`,
-`n_`, `Nn_`, `p_`, `np_`, `s_`, `pgettext`, `gettext`, `dgettext`,
-`dpgettext2`, …). The 233 "ported" keys above are reached *entirely* through
-the `.po` files the port copied byte-for-byte from upstream — the scanner
-never found a single call site in `lib/`. That means the key-set match is
-real (the catalogue is a faithful copy) but it is **not independent proof**
-that the Ruby source actually invokes the right key at every site; that
-claim rests on this report's own manual check, not the generic tooling:
+### The 3 old metainfo/desktop gaps: closed
 
-```sh
-grep -noE '\.(title|label|text|subtitle|tooltip_text) *= *"[^"]+"' lib/*.rb | grep -v 'Translation\.'
-# -> no output: every such literal assignment in lib/ is empty
-grep -c 'Translation\.t(' lib/*.rb | grep -v ':0'
-# -> 11 files call it, 61 call sites total
+The prior pass's 4 gaps included 3 strings from
+`data/com.github.liferooter.textpieces.appdata.xml.in` ("Powerful
+scratchpad...", "The application is extendable...", "And so on.") which the
+port did not ship at all, because it shipped no `data/` directory. It now
+does (`data/org.rubygtkproject.Textpieces.metainfo.xml`,
+`data/org.rubygtkproject.Textpieces.desktop`, see
+`.reports/component-identification.md`), and `po/textpieces.pot` now
+contains all 3 strings:
+
+```
+$ grep -c "Powerful scratchpad\|script-based actions\|And so on" po/textpieces.pot
+3
 ```
 
-So the strings genuinely do route through the translation layer — this was
-checked by reading, not inferred from the scanner's silence — but the
-scanner limitation itself is real and should be reported upstream to the
-skill (its marker list needs `Translation.t`/`Translation.tools` added, or
-this port's whole catalogue match is coincidental rather than demonstrated).
-Per the skill's own rule ("fix the scanner... or state the discrepancy"),
-this is stated rather than worked around silently.
+None of the 3 are translated in `es.po`/`nl.po`/`pt_BR.po` — but neither are
+they in upstream's own `.po` files for the same 3 strings (confirmed: 0
+matches on both sides). This matches upstream's own (untranslated) state
+exactly, so it is not a port-introduced regression; it is upstream's own gap,
+faithfully reproduced. **Closed, correctly.**
+
+### The 1 remaining old gap: not a real gap (unchanged from before)
+
+`!unresolved` on `_(name)` in `ToolSettings.vala:60` is a dynamic call the
+census scanner cannot resolve to a literal upstream msgid. The port's actual
+mechanism (`Translation.tools`, verified at `lib/tool.rb:115-117`) is
+correct. Carried forward unchanged from the prior report.
+
+## New finding: 2 strings exist in the port's source but in no catalogue at all
+
+```ruby
+# lib/shortcuts_window.rb:67
+window.title = Translation.t("Keyboard Shortcuts")
+# lib/window.rb:470
+dialog.add_response("close", Translation.t("_Close"))
+```
+
+```
+$ grep -c '"_Close"\|"Keyboard Shortcuts"' po/textpieces.pot po/es.po po/nl.po po/pt_BR.po
+0  0  0  0
+```
+
+These are not upstream msgids at all — upstream's `Gtk.ShortcutsWindow` is a
+native widget that gets its own window title and close button translated
+from GTK's installed locale data, not from `po/textpieces.pot`. The port
+substitutes `Adw::ShortcutsDialog` (bindings cannot construct the native
+widget — a documented, reasonable substitution, see
+`.reports/component-parity.md`), which does not supply that chrome for
+free, so the port writes the two strings itself. Writing them was the right
+call. Routing them through `Translation.t` looks right at a glance — it is
+the house convention, and it means the strings are *not* hardcoded English
+literals outside the translation layer.
+
+But `Translation.t` falls back silently to the literal when the catalogue
+has no entry (`lib/translation.rb:29`, correct gettext-matching behaviour,
+and the reason nothing crashes or shows brackets). That silence is exactly
+why this gap is invisible at runtime: the app looks fully translated in
+every locale because the English fallback is indistinguishable from a real
+translation when you're reading English. The two strings are **not
+present in `po/textpieces.pot` and have no path to get there**:
+
+```
+$ rake -T 2>&1 | grep pot
+# (nothing — no pot-extraction task exists)
+```
+
+`flake.nix` has a comment claiming `rxgettext` is installed because "the
+extractor `rake pot` drives" it — no such task exists in `Rakefile`. So even
+if someone wanted to regenerate the catalogue from the Ruby source today,
+the tool the repo's own comment says to run isn't there. These two strings
+are structurally stuck in English for every non-English user, permanently,
+until someone either writes a `rake pot` task or hand-adds the two msgids.
+
+This is the kind of gap the generic scanner cannot find on its own (it
+doesn't know `Translation.t` is a translation call at all, a limitation
+already noted in the prior pass) — it was found by reading the two files
+the `Adw::ShortcutsDialog`/`gtksourceview5` substitutions touched and
+checking each new literal against all four catalogues by hand.
+
+## Scanner limitation, carried forward
+
+Unchanged from the prior pass: `msgid-census.sh`'s marker list does not
+include `Translation.t`/`Translation.tools`, so every one of the 249 "port"
+rows above that looks like `!unresolved` is a call site the scanner can't
+parse as a literal, not a missing string — confirmed by hand that the
+genuinely-ported 236 keys route correctly through 11 files and 61+ call
+sites of `Translation.t(`. This is stated per the skill's rule rather than
+silently worked around, same as the prior pass.
 
 ## Languages
 
-```
-diff <(ls po/*.po | xargs -n1 basename -s .po | sort) <(sort LINGUAS from upstream, comments stripped)
--> no difference: es, nl, pt_BR on both sides
-```
+Unchanged: `es`, `nl`, `pt_BR`, byte-identical copies of upstream's own
+`.po` files (`diff -q` on all three, confirmed again this pass — the files
+were not touched by any commit since the last audit).
 
-Not independently re-verified: the per-language translated/untranslated/fuzzy
-string *counts* (upstream vs. port) were not recomputed in this pass — the
-files are byte-identical copies (confirmed `diff -q` on all three `.po`s
-below), so the counts are necessarily equal, but this is inference from the
-copy being unmodified, not a fresh count:
+## Not run (same limitations as before)
 
-```sh
-diff -q po/es.po     /tmp/parity/upstream/po/es.po
-diff -q po/nl.po     /tmp/parity/upstream/po/nl.po
-diff -q po/pt_BR.po  /tmp/parity/upstream/po/pt_BR.po
-```
-(all three: identical, confirmed in this session)
-
-## Not run
-
-- `msgfmt -c` validation of any catalogue (not installed in the checked
-  environment; not attempted — named here as unrun rather than silently
-  skipped).
-- Running the app under `LANGUAGE=es` or `LANGUAGE=nl` and asserting a known
-  translated string on screen. `lib/translation.rb`'s own catalogue-selection
-  logic was read and looks correct (LC_ALL/LC_MESSAGES/LANG priority, region
-  fallback), but it was not driven live in a non-English locale in this
-  pass.
+- `msgfmt -c` validation (not installed in the checked environment).
+- Driving the app live under `LANGUAGE=es`/`nl` and asserting a translated
+  string on screen.
 
 ## Verdict
 
-**Not clean.** 233/237 messages ported (98%), 3/3 languages shipped
-byte-identical, 0 reworded strings found — this is a strong result and
-clearly deliberate work, not an oversight. But: 4 open gaps (all tied to the
-same missing metainfo/desktop file), the generic scanner cannot actually see
-the port's marker convention (so the catalogue match, while correct on
-manual inspection, is not demonstrated by the tooling the way the skill
-expects), and the live non-English run was not performed. "Fully localised"
-is not claimed here; the numbers above are.
+**Not clean.** The 3 old metainfo gaps are genuinely closed, correctly
+matching upstream's own untranslated state rather than just suppressing the
+diff. But this pass found a new, real gap introduced by the
+`Adw::ShortcutsDialog` substitution: 2 strings with no path into any
+catalogue, invisible at runtime because the fallback-to-English behaviour
+that makes missing keys harmless also makes them undetectable without
+reading the source against all four catalogues by hand — which is what this
+pass did. The `rake pot` comment describing nonexistent tooling compounds
+this: there is currently no mechanical way to even notice these two strings
+are missing, let alone add them.

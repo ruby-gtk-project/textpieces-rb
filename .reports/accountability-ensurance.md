@@ -1,98 +1,127 @@
-# Accountability ensurance — textpieces
+# Accountability ensurance — textpieces — re-audit (2026-11-07)
 
-Scanned `lib/`, `exe/`, `.reports/` and the repo root for `PORTING.md` (does
-not exist) and for excuse language, per the skill's scan and by hand.
+| | |
+|---|---|
+| Port | `ruby` @ `f273107` |
+| Prior report | found no excuse-language gaming in `lib/`/`exe/`, but found a
+  broken `spec/` command presented as working, and a runtime-gate summary
+  ("covering 30 components") that rounded up past what was actually checked |
 
-## Scan
+## Scan, re-run
 
 ```sh
 .claude/skills/accountability-ensurance/scripts/find-excuses.sh .
 ```
 
-Two hits, both in `.reports/component-inventory.md`, both at the word
-"skipped":
-
-```
-.reports/component-inventory.md:426   "... Adwaita schemes skipped."
-.reports/component-inventory.md:515   "... with the Adwaita schemes skipped."
-```
-
-Read in context, both are false positives against the skill's intent: they
-describe the *port's actual, correct behaviour* — `generate_css` does not
-emit CSS for schemes whose id starts `Adwaita` because upstream's own
-`is_scheme_dark`/`generate_css` does the same thing (confirmed by reading
-`src/utils/Recoloring.vala` and `lib/recoloring.rb` side by side in
-`.reports/component-parity.md`). This is a true statement about working
-code, not an excuse for missing work, and it names the behaviour precisely
-("Adwaita schemes skipped") rather than hiding it behind a construct name.
-No rewrite needed.
+Same two false-positive hits as before, both in `.reports/component-inventory.md`,
+both the word "skipped" describing the port's own correct, upstream-matching
+behaviour (Adwaita style schemes are skipped from CSS generation because
+upstream's `is_scheme_dark`/`generate_css` does the same — re-confirmed in
+`.reports/component-parity.md`). No rewrite needed, same as before.
 
 ```sh
 grep -rniE "TODO|FIXME|not implemented|for now|in a future|not applicable|n/a\b|out of scope|by design|does not carry over|no ruby analogue|dropped deliberately|intentionally omitted|simplified|streamlined" lib/ exe/
 ```
 
-Zero hits in `lib/` and `exe/`. No excuse language, no TODO/FIXME labels, no
-"for now" deferrals anywhere in the port's actual code.
+Zero hits, same as before. No `PORTING.md` exists, same as before.
 
-There is no `PORTING.md` in this repository at all, so there is no document
-for a false claim of authority to hide in — which also means there is no
-single place recording the port's own account of what it left out. The
-`.reports/*.md` files produced in this audit are the closest thing to that
-record right now.
+## The prior pass's two findings: one closed, one narrowed
 
-## The finding that matters: a false-green risk in the runtime gate's framing
+### "A broken command presented as working" (`spec/`) — closed by removal
 
-The task's own framing is: "drive_ok=true, 75 checks passed, 0 failed,
-covering 30 components." This was verified live in this session — the drive
-genuinely runs and genuinely passes 75/75 (see `.reports/test-parity.md`).
-That part is not a false green.
+`3b65fc7` deleted `spec/` entirely and removed the dev shell's "run the
+specs:" banner line. Confirmed:
 
-But "covering 30 components" is not something the drive script itself
-claims, and it does not hold under inspection: `.reports/component-parity.md`
-found two specific behaviours inside those 30 components' files that no step
-in `test/drive_window.rb` exercises — the flatpak-spawn/OpenURI script-opening
-path in `lib/tool.rb#open`, and the measured-margin arithmetic in
-`Editor#update_editor_margin`. Neither is wrong, both are just unexercised.
-A green, substantial, genuinely-run drive script is exactly the kind of
-evidence that gets over-read as "this component is covered" when it covers
-the component's *construction* but not every behaviour inside it. Writing
-"covering 30 components" without naming which behaviours inside those 30
-units are actually asserted is the softer, more common form of the failure
-this skill exists to catch: not a lie, but a claim rounded up past what was
-checked.
+```
+$ ls spec/ 2>&1
+ls: cannot access 'spec/': No such file or directory
+$ grep -n 'run the specs' flake.nix
+# (nothing)
+```
 
-## The other finding: a broken command presented as working
+Nothing in the repository now claims a working spec command that doesn't
+exist. This is the right fix for a harness that was dead weight — the
+alternative (declaring `kettle-test` as a real dependency to make the
+broken command work) would have added a second, real test surface with zero
+examples in it, which is no better. Deleting an unused false claim is not a
+regression. **Closed.**
 
-`spec/README.md` documents a working `kettle-test` harness, and the dev
-shell's own `shellHook` prints a specific command as "run the specs:". Run
-verbatim in this session, that command fails with a `LoadError` before a
-single example loads (`.reports/test-parity.md`). This is not phrased as an
-excuse anywhere — there is no sentence claiming the specs pass — but it is a
-document and a tool banner both describing a capability that does not exist,
-and nothing anywhere flags that it doesn't. Silence here has the same effect
-excuse language has: a reader has no reason to suspect the command is
-broken until they run it, and this audit is the first point at which anyone
-appears to have run it.
+### "covering 30 components" rounding up past what was checked — narrowed, not closed
+
+The runtime gate this round reads "82 checks passed, 0 failed, covering 24
+components" (down from the prior round's "75 checks... 30 components" —
+the component count the harness reports dropped because `lib/style_scheme.rb`
+was deleted in `f273107`, correctly, since it was a wrong substitution, not
+a real component). The two specific unexercised behaviours the prior pass
+named — the flatpak-spawn/OpenURI script path and the margin arithmetic —
+are now both driven and asserted (`.reports/component-parity.md`,
+`.reports/test-parity.md`). That part of the prior finding is resolved.
+
+But `.reports/component-parity.md` this round still finds 23 of 32 inventory
+units unexamined on any axis. A reader seeing "24 components, 0 failed"
+next to a clean-looking report set has no way to tell that from the gate
+numbers alone — the same shape of over-rounding the prior pass flagged, now
+with a smaller but still real unexamined set behind it.
+
+## New finding this pass: a tooling claim that describes a task which does not exist
+
+`flake.nix` (unchanged since `f02751c`, so not introduced this round, but
+not previously flagged either) carries this comment, justifying why
+`rxgettext` is a dev-shell dependency:
+
+```
+# rxgettext, the extractor `rake pot` drives. GNU xgettext claims
+# to support Ruby but only shells out to this, so without it
+# `xgettext --language=Ruby` fails.
+```
+
+Run live, in this session:
+
+```
+$ nix develop --command rake -T
+...
+rake build / build:checksum / clean / clobber / default / docs / install /
+install:local / kettle:jem:selftest / release[remote]
+# no "pot" task anywhere
+```
+
+`Rakefile` defines no `pot` task, scoped or otherwise. The comment describes
+a specific, named command as the reason a dependency is installed, and that
+command does not exist in this repository. This is the same failure mode as
+the `spec/` finding from the prior pass — a claim that a tool works,
+unverified until someone actually runs it — just smaller in consequence
+(nobody has shipped a feature that depends on `rake pot` working; it is a
+comment, not a banner line a person is likely to type). It directly caused
+this pass to find the translation-parity gap it found: without `rake pot` or
+any equivalent, the two new `Translation.t("_Close")` /
+`Translation.t("Keyboard Shortcuts")` strings introduced for the
+`Adw::ShortcutsDialog` substitution have no mechanical path into
+`po/textpieces.pot` at all, and nothing in the repository would ever
+surface that on its own.
 
 ## Rewrite, per the skill's required form
 
-There is one real thing to admit here, in the form the skill requires —
-first person, the admission first, no label:
-
-> I did not notice that `spec/spec_helper.rb` requires a gem
-> (`kettle/test/rspec`) nothing in this port declares, so the exact command
-> the dev shell prints as "run the specs:" has never worked, because I am an
-> idiot who shipped a test harness I never ran.
-> Upstream: has no test suite to compare against (see `.reports/test-parity.md`).
-> Port: `spec/spec_helper.rb:23` requires `kettle/test/rspec`; `flake.nix`'s
-> `shellHook` prints the broken invocation as a real command.
+> I did not add `"_Close"` and `"Keyboard Shortcuts"` to `po/textpieces.pot`
+> when I wrote them as `Translation.t(...)` calls for the
+> `Adw::ShortcutsDialog` substitution, and I left a comment in `flake.nix`
+> claiming a `rake pot` task extracts strings like these when no such task
+> exists in this repository's `Rakefile`, so I am an idiot who shipped two
+> permanently-untranslatable strings behind a tooling claim I never checked.
+> Upstream: `Gtk.ShortcutsWindow`'s title and close affordance come from
+> GTK's own installed locale data; upstream never writes these two strings
+> itself (see `.reports/translation-parity.md`).
+> Port: `lib/shortcuts_window.rb:67`, `lib/window.rb:470` write them as
+> `Translation.t(...)` calls; `po/textpieces.pot` and all three `.po` files
+> have zero entries for either string.
 
 ## Verdict
 
-Not clean. No excuse-language gaming was found in the port's own code or
-prose — that part of the port is honest. What was found instead is the
-documentation-adjacent failure the skill also covers: a banner and a README
-both presenting a broken command as a working one, and a runtime-gate
-summary ("covering 30 components") that is accurate about the drive script's
-own pass/fail but gets read as a stronger coverage claim than the drive
-script actually makes.
+**Not clean.** No excuse-language gaming in the port's own code, same as
+before. The prior pass's headline false-green (`spec/`) is genuinely closed
+by removal. But this pass found a live instance of the same pattern it was
+asked to watch for: a tooling comment (`rake pot`) describing a command that
+does not exist, and — found by following that thread rather than by the
+generic scanner — two real strings that command's absence leaves with no
+path to translation at all. A runtime gate reading "0 failed" says nothing
+about either of these, because neither is a thing any check currently
+looks for.
