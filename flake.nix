@@ -253,9 +253,11 @@
             pkgs.pkg-config
             pkgs.glib.dev
             pkgs.gettext
-            # rxgettext, the extractor `rake pot` drives. GNU xgettext claims
-            # to support Ruby but only shells out to this, so without it
-            # `xgettext --language=Ruby` fails.
+            # rxgettext, the extractor GNU xgettext's `--language=Ruby` mode
+            # shells out to; without it that mode fails outright. No rake
+            # task in this repo drives it yet (`po/textpieces.pot` is
+            # maintained by hand), but the dev shell carries the tool so one
+            # can be added without a second round of Nix wiring.
             pkgs.rubyPackages_3_4.gettext
             # This machine may have no display server at all, so the shell
             # carries one it can start itself: `xvfb-run ruby exe/<app>` both

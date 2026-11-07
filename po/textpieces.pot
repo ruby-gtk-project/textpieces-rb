@@ -683,6 +683,21 @@ msgstr ""
 msgid "_About Text Pieces"
 msgstr ""
 
+#. Translators: not an upstream string. Upstream's native Gtk.ShortcutsWindow
+#. supplies its own translated window title from GTK's own locale data; the
+#. Ruby bindings cannot construct that widget, so the port substitutes
+#. Adw.ShortcutsDialog and has to supply this title itself.
+#: lib/shortcuts_window.rb:67
+msgid "Keyboard Shortcuts"
+msgstr ""
+
+#. Translators: not an upstream string. The close button of the port's
+#. file-error alert dialog (Adw.AlertDialog), which upstream's own dialog
+#. does not need to supply as a separate msgid.
+#: lib/window.rb:470
+msgid "_Close"
+msgstr ""
+
 #: data/tools.json
 msgctxt "tools"
 msgid "Base64 Decode"
