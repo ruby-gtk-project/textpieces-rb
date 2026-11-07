@@ -118,13 +118,7 @@ markers_awk() {
         }
 
         pos = 1
-        # textpieces-rb (and any other Ruby port using the same house
-        # convention) calls Translation.t(msgid) and Translation.tools(msgid)
-        # instead of a bare _() / dpgettext2(...). Translation.tools has no
-        # explicit context argument - "tools" is implicit in the method name
-        # - so it is recognised here as its own marker and given ctxt="tools"
-        # below, the same way dpgettext2(null, "tools", msgid) is recorded.
-        while (match(substr(buf, pos), /(^|[^A-Za-z0-9_.])(g_)?(_|N_|NC_|C_|n_|Nn_|np_|p_|s_|ngettext|gettext|dgettext|dngettext|dpgettext|dpgettext2|pgettext|npgettext|Translation\.tools|Translation\.t)[[:space:]]*\(/)) {
+        while (match(substr(buf, pos), /(^|[^A-Za-z0-9_.])(g_)?(_|N_|NC_|C_|n_|Nn_|np_|p_|s_|ngettext|gettext|dgettext|dngettext|dpgettext|dpgettext2|pgettext|npgettext)[[:space:]]*\(/)) {
           start = pos + RSTART - 1
           if (start > own) break          # this match belongs to a later line
           m = substr(buf, start, RLENGTH)
@@ -159,8 +153,6 @@ markers_awk() {
             kind = "plural"
           } else if (m == "s_" || m == "sgettext") {
             if (index(a, "|")) { ctxt = substr(a, 1, index(a, "|") - 1); id = substr(a, index(a, "|") + 1) }
-          } else if (m == "Translation.tools") {
-            ctxt = "tools"
           }
           if (id != "") print ctxt "\t" id "\t" kind "\t" F ":" i
         }
