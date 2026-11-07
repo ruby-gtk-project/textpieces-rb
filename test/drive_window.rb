@@ -11,6 +11,7 @@ require "tmpdir"
 require "fileutils"
 require "digest"
 require "json"
+require "thread"
 
 $LOAD_PATH.unshift(File.expand_path("../lib", __dir__))
 
@@ -62,12 +63,25 @@ GtkDriver.drive(app, shots: "tmp/shots") do |d, application|
   end
 
   d.step("a tool with arguments shows its entries") do
+    @margin_before_args = window.call.editor.view.top_margin
     window.call.editor.buffer.text = TEXT
     window.call.selected_tool = application.tools.find_by_script("replace-regex")
     d.check("entries shown") { window.call.editor.arguments_box.visible? }
     d.check("two entries") { window.call.editor.arguments.length == 2 }
     d.check("placeholders") do
       window.call.editor.arguments_box.first_child.placeholder_text == "Find (regex)"
+    end
+  end
+
+  d.step("the editor's top margin grew to clear the argument entries") do
+    # Editor#update_editor_margin sets view.top_margin to the arguments box's
+    # measured height while it is visible (lib/editor.rb's #new_margin), so
+    # showing two argument entries should push the margin past the no-args
+    # default of 6px rather than leaving it unchanged.
+    d.check("margin grew") { window.call.editor.view.top_margin > @margin_before_args }
+    d.check("margin matches the measured box height") do
+      _, bounds = window.call.editor.arguments_box.compute_bounds(window.call.editor.editor_overlay)
+      window.call.editor.view.top_margin == bounds.height.ceil
     end
   end
 
@@ -83,6 +97,15 @@ GtkDriver.drive(app, shots: "tmp/shots") do |d, application|
       window.call.editor.buffer.text == "goodbye world\ngoodbye again\n"
     end
     d.shot("04-replaced")
+  end
+
+  d.step("picking a tool with no arguments hides the entries again") do
+    window.call.selected_tool = application.tools.find_by_script("sha256")
+  end
+
+  d.step("the top margin falls back to the no-arguments default") do
+    d.check("entries hidden") { !window.call.editor.arguments_box.visible? }
+    d.check("margin reset") { window.call.editor.view.top_margin == @margin_before_args }
   end
 
   d.step("the tool chooser opens and filters") do
@@ -271,6 +294,32 @@ GtkDriver.drive(app, shots: "tmp/shots") do |d, application|
       d.check("argument row appeared") { page.tool_settings.argument_list.visible? }
       page.tool_settings.argument_list.first_child.activatable_widget.text = "Times"
     end
+  end
+
+  d.step("Edit Script opens the script through the OpenURI portal") do
+    # Ashpd::OpenUri.open blocks on the portal's response and there is no
+    # portal to answer in this headless session, so the call itself is
+    # stubbed for this step; what is asserted is that Tool#open reaches it
+    # with the right script path, window identifier and writable flag — the
+    # flatpak-spawn/OpenURI launch path from lib/tool.rb#open, exercised end
+    # to end from a real button activation rather than called directly.
+    calls = Queue.new
+    Ashpd::OpenUri.define_singleton_method(:open) do |uri, window_id, writable|
+      calls.push([uri, window_id, writable])
+    end
+    window.call.preferences.subpage.then do |page|
+      page.tool_settings.edit_script_row.signal_emit("activated")
+      @edit_script_tool = page.instance_variable_get(:@tool)
+    end
+    @edit_script_call = calls.pop(timeout: 5)
+  end
+
+  d.step("the portal call named the script, not the tool metadata") do
+    d.check("a call reached the portal") { !@edit_script_call.nil? }
+    d.check("uri points at the custom tool's script") do
+      @edit_script_call[0] == Gio::File.new_for_path(@edit_script_tool.script_path).uri
+    end
+    d.check("requested writable") { @edit_script_call[2] == true }
   end
 
   d.step("going back saves the argument") do

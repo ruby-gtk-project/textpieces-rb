@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+SPDX-FileCopyrightText: 2021 Gleb Smirnov <glebsmirnov0708@gmail.com>
+SPDX-FileCopyrightText: 2026 ruby-gtk-project
+
+SPDX-License-Identifier: CC0-1.0
+-->
+<!--
+Ported from upstream's data/com.github.liferooter.textpieces.appdata.xml.in.
+The id, launchable and provides/binary are rewritten for this port's app id
+(org.rubygtkproject.Textpieces, matching Textpieces::Application::APP_ID in
+lib/textpieces/application.rb) and launcher (exe/textpieces, installed as
+`textpieces`); summary, description and content rating are upstream's,
+unchanged. The per-release notes are upstream's own release history and are
+not carried forward here, since they describe the Vala application's
+releases rather than this port's.
+-->
+<component type="desktop-application">
+  <id>org.rubygtkproject.Textpieces</id>
+  <name>Text Pieces</name>
+  <summary>Transform text without using random websites</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+  <description>
+    <p>
+      Powerful scratchpad with ability to perform a lot of text transformations, such as:
+    </p>
+    <ul>
+      <li>Calculate hashes</li>
+      <li>Encode text</li>
+      <li>Decode text</li>
+      <li>Remove trailing spaces and lines</li>
+      <li>Count lines, symbols and words</li>
+      <li>Format JSON and XML</li>
+      <li>Escape and unescape strings</li>
+      <li>Convert JSON to YAML and vice versa</li>
+      <li>Filter lines</li>
+      <li>Replace substrings and regular expressions</li>
+      <li>And so on.</li>
+    </ul>
+    <p>The application is extendable with your own script-based actions.</p>
+  </description>
+  <launchable type="desktop-id">org.rubygtkproject.Textpieces.desktop</launchable>
+  <provides>
+    <binary>textpieces</binary>
+  </provides>
+  <developer id="com.github.liferooter">
+    <name>Gleb Smirnov</name>
+  </developer>
+  <url type="homepage">https://github.com/ruby-gtk-project/textpieces-rb</url>
+  <url type="bugtracker">https://github.com/ruby-gtk-project/textpieces-rb/issues</url>
+  <supports>
+    <control>pointing</control>
+    <control>touch</control>
+  </supports>
+  <recommends>
+    <control>keyboard</control>
+  </recommends>
+  <requires>
+    <display_length compare="ge">360</display_length>
+    <internet>offline-only</internet>
+  </requires>
+  <content_rating type="oars-1.1" />
+</component>

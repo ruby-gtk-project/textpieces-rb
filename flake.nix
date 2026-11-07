@@ -197,6 +197,22 @@
               ${pkgs.glib.dev}/bin/glib-compile-schemas $out/share/glib-2.0/schemas
             fi
 
+            # Desktop entry and AppStream metainfo, so a GNOME shell can find
+            # and launch the app and show its name/summary/keywords. These
+            # are plain files (no meson i18n.merge_file step exists in this
+            # port), so they are installed as-is under the standard
+            # XDG_DATA_DIRS locations rather than copied beside lib/.
+            install -Dm644 data/org.rubygtkproject.Textpieces.desktop \
+              $out/share/applications/org.rubygtkproject.Textpieces.desktop
+            install -Dm644 data/org.rubygtkproject.Textpieces.metainfo.xml \
+              $out/share/metainfo/org.rubygtkproject.Textpieces.metainfo.xml
+
+            # Hicolor icons, so the desktop entry's Icon= key resolves.
+            if [ -d data/icons/hicolor ]; then
+              mkdir -p $out/share/icons
+              cp -r data/icons/hicolor $out/share/icons/
+            fi
+
             # -rbundler/setup puts the bundled gems on the load path, and
             # GI_TYPELIB_PATH keeps GObject-Introspection from re-registering
             # types the cairo gem's C extension has already registered.
@@ -239,8 +255,6 @@
             # to support Ruby but only shells out to this, so without it
             # `xgettext --language=Ruby` fails.
             pkgs.rubyPackages_3_4.gettext
-            # The spec runner. The suite is plain RSpec, so this is enough.
-            pkgs.rubyPackages_3_4.rspec
             # This machine may have no display server at all, so the shell
             # carries one it can start itself: `xvfb-run ruby exe/<app>` both
             # launches the app and is how test/drive_*.rb is run.
@@ -263,7 +277,6 @@
             echo "textpieces devshell — ruby $(ruby -e 'print RUBY_VERSION')"
             echo "run the app:   xvfb-run ruby exe/textpieces"
             echo "drive the app: xvfb-run ruby test/drive_*.rb"
-            echo "run the specs: ruby -e 'require \"rspec/core\"; exit RSpec::Core::Runner.run([\"--format\", \"progress\", \"--require\", \"spec_helper\", \"spec\"])'"
           '';
         };
       });

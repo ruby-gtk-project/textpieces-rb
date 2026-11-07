@@ -39,6 +39,10 @@ msgstr ""
 msgid "Transform text without using random websites"
 msgstr ""
 
+#: data/org.rubygtkproject.Textpieces.metainfo.xml
+msgid "Powerful scratchpad with ability to perform a lot of text transformations, such as:"
+msgstr ""
+
 #: data/com.github.liferooter.textpieces.appdata.xml.in:14
 msgid "Do a lot of text transformations, such as:"
 msgstr ""
@@ -85,6 +89,14 @@ msgstr ""
 
 #: data/com.github.liferooter.textpieces.appdata.xml.in:27
 msgid "...and so on."
+msgstr ""
+
+#: data/org.rubygtkproject.Textpieces.metainfo.xml
+msgid "And so on."
+msgstr ""
+
+#: data/org.rubygtkproject.Textpieces.metainfo.xml
+msgid "The application is extendable with your own script-based actions."
 msgstr ""
 
 #: data/com.github.liferooter.textpieces.appdata.xml.in:32
