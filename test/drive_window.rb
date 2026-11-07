@@ -331,16 +331,63 @@ GtkDriver.drive(app, shots: "tmp/shots") do |d, application|
     d.check("editor still holds the text") { window.call.editor.buffer.text == TEXT }
   end
 
+  d.step("the win.find action opens the search bar") do
+    window.call.window.activate_action("find", nil)
+  end
+
+  d.step("the search bar opened without going through the toggle button") do
+    d.check("revealed") { window.call.editor.search_bar.search_revealer.reveal_child? }
+    window.call.editor.search_bar.hide_search
+  end
+
+  d.step("a tool with arguments is selected for jump-to-args") do
+    window.call.selected_tool = application.tools.find_by_script("replace-regex")
+    d.check("entries shown") { window.call.editor.arguments_box.visible? }
+  end
+
+  d.step("the win.jump-to-args action moves focus to the first argument") do
+    window.call.window.activate_action("jump-to-args", nil)
+    d.check("first argument has focus") do
+      # The focus lands on the entry's internal `Gtk::Text`, not the
+      # `Gtk::Entry` itself (it is a composite widget), so check parentage.
+      window.call.window.focus&.parent == window.call.editor.arguments_box.first_child
+    end
+  end
+
+  d.step("the win.tools-settings action opens preferences on the tools page") do
+    window.call.window.activate_action("tools-settings", nil)
+  end
+
+  d.step("preferences is showing the custom-tools page") do
+    window.call.preferences.then do |prefs|
+      d.check("visible") { prefs.window.visible? }
+      d.check("tools page selected") { prefs.window.visible_page_name == "custom-tools" }
+      prefs.window.close
+    end
+  end
+
+  d.step("the app.new-window action opens a second window") do
+    application.app.activate_action("new-window", nil)
+  end
+
+  d.step("the second window is open and shares the persisted tool choice") do
+    application.instance_variable_get(:@windows).then do |windows|
+      d.check("two windows") { windows.length == 2 }
+      d.check("new window restores the shared selected tool") do
+        windows.last.tool_button_content.label == window.call.tool_button_content.label
+      end
+    end
+  end
+
   d.step("opening a file opens a window on it") do
     application.open([Gio::File.new_for_path(SCRATCH_FILE)])
   end
 
   d.step("the new window shows the file") do
     application.instance_variable_get(:@windows).then do |windows|
-      d.check("two windows") { windows.length == 2 }
+      d.check("three windows") { windows.length == 3 }
       d.check("file loaded") { windows.last.editor.buffer.text == TEXT }
       d.shot("17-opened-file", windows.last.window)
-      windows.last.window.close
     end
   end
 end
