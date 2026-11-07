@@ -1,519 +1,104 @@
-# textpieces — upstream component inventory
-
-Survey of `origin/main` (Vala + blueprint, Text Pieces by Gleb Smirnov) against
-`lib/` on the `ruby` branch. Built with the `component-identification` skill:
-every blueprint was read first (they *are* the widget tree), then the backing
-`.vala` for the widgets, CSS classes, signals and actions the declarative files
-cannot show.
-
-Upstream is 11 Vala files, 10 blueprints, one GSettings schema, one GResource
-manifest, two stylesheets, 36 bundled tool scripts and two gettext catalogues.
-
-`lib/` on `ruby` now holds **25 files** of app code: every one of the 30 units
-in the map below has a port file, and the bundled data (`data/tools.json`, the
-37 `scripts/`, `data/style-schemes/`, `data/icons/`) and the `po/` catalogues
-are in place as well. **Every user-facing component below exists**; what is
-left is per-component parity detail, not missing units, so this inventory is
-now the checklist a `component-parity` pass runs against rather than a list of
-work not started.
-
-Five port files have no single upstream counterpart — they exist because the
-Ruby bindings lack what upstream imports. They are listed under *Port-only
-support units* below.
-
-## Scope note
-
-`src/widgets/SearchBar.vala`, `src/widgets/SearchEntry.vala` and
-`src/widgets/Editor.vala` all lean on **GtkSourceView 5** —
-`GtkSource.View`, `GtkSource.Buffer`, `GtkSource.SearchContext`,
-`GtkSource.SearchSettings`, `GtkSource.StyleScheme`,
-`GtkSource.StyleSchemeManager` and `GtkSource.StyleSchemeChooserWidget`. There
-GtkSourceView has **no Ruby bindings at all**, so none of it could be
-imported. The port reproduces the behaviour instead: `Gtk::TextView` over a
-plain `Gtk::TextBuffer` for the editor, `lib/search_context.rb` for the search
-context and settings, `lib/style_scheme.rb` plus `data/style-schemes/*.json`
-for the schemes, and a hand-built chooser in `lib/preferences.rb`. Syntax
-highlighting is the one thing not reproduced — upstream does not use it either
-(the editor shows plain text), so this costs no parity.
-
----
-
-## Component map
-
-| # | Upstream | → port file | Kind | Exists |
-|--:|---|---|---|---|
-| 1 | `src/Application.vala` | `lib/textpieces/application.rb` | application | yes |
-| 2 | `src/widgets/Window.vala` + `resources/ui/Window.blp` | `lib/window.rb` | window | yes |
-| 3 | `resources/ui/Window.blp` (`menu app-menu`) | `lib/window.rb` | menu | yes |
-| 4 | `src/widgets/Window.vala` (`action_about`) | `lib/window.rb` | dialog | yes |
-| 5 | `src/widgets/Window.vala` (`action_save_as`, `action_load_file`) | `lib/window.rb` | dialog | yes |
-| 6 | `src/widgets/Window.vala` (`load_from`, `action_save_as` catch) | `lib/window.rb` | error state | yes |
-| 7 | `src/widgets/Editor.vala` + `resources/ui/Editor.blp` | `lib/editor.rb` | widget | yes |
-| 8 | `src/widgets/Search.vala` + `resources/ui/Search.blp` | `lib/search.rb` | page | yes |
-| 9 | `resources/ui/Search.blp` (placeholder stack page) | `lib/search.rb` | empty state | yes |
-| 10 | `src/tools/Tool.vala` (`build_list_row`) | `lib/tool_row.rb` | row | yes |
-| 11 | `src/widgets/SearchBar.vala` + `resources/ui/SearchBar.blp` | `lib/search_bar.rb` | widget | yes |
-| 12 | `src/widgets/SearchEntry.vala` + `resources/ui/SearchEntry.blp` | `lib/search_entry.rb` | widget | yes |
-| 13 | `src/widgets/preferences/Preferences.vala` + `resources/ui/Preferences.blp` | `lib/preferences.rb` | window | yes |
-| 14 | `resources/ui/Preferences.blp` (custom-tools empty page) | `lib/preferences.rb` | empty state | yes |
-| 15 | `src/widgets/preferences/Preferences.vala` (custom tools `bind_model`) | `lib/custom_tool_row.rb` | row | yes |
-| 16 | `src/widgets/preferences/Preferences.vala` (`action_select_font`) | `lib/preferences.rb` | dialog | yes |
-| 17 | `src/widgets/preferences/ToolSettings.vala` + `resources/ui/ToolSettings.blp` | `lib/tool_settings.rb` | widget | yes |
-| 18 | `src/widgets/preferences/ToolSettings.vala` (`argument_list` `bind_model`) | `lib/argument_row.rb` | row | yes |
-| 19 | `src/widgets/preferences/pages/CustomToolPage.vala` + `.blp` | `lib/custom_tool_page.rb` | page | yes |
-| 20 | `src/widgets/preferences/pages/NewToolPage.vala` + `.blp` | `lib/new_tool_page.rb` | page | yes |
-| 21 | `resources/ui/ShortcutsWindow.blp` | `lib/shortcuts_window.rb` | window | yes |
-| 22 | `src/Application.vala` (`ACTION_ACCELS`) | `lib/textpieces/application.rb` | shortcuts | yes |
-| 23 | `src/tools/Tool.vala` | `lib/tool.rb` | model | yes |
-| 24 | `src/tools/ToolsController.vala` | `lib/tools_controller.rb` | model | yes |
-| 25 | `src/utils/Recoloring.vala` | `lib/recoloring.rb` | style | yes |
-| 26 | `src/utils/Utils.vala` | `lib/utils.rb` | util | yes |
-| 27 | `data/com.github.liferooter.textpieces.gschema.xml` | `lib/settings.rb` | settings | yes |
-| 28 | `resources/style.css` | `lib/style.rb` | stylesheet | yes |
-| 29 | `data/tools.json` + `scripts/*` | `data/tools.json`, `scripts/` | data | yes |
-| 30 | `po/textpieces.pot`, `po/tools.pot`, `po/{es,nl,pt_BR}.po` | `po/` | translations | yes |
-
----
-
-## 1. `src/Application.vala` — the application: actions, accels, style scheme
-
-| Widget | × | CSS | Signals / actions | Notes |
-|---|---:|---|---|---|
-| `Adw.Application` | 1 | — | `startup`, `activate`, `open`, `shutdown` | id `com.github.liferooter.textpieces`, flags `FLAGS_NONE | HANDLES_OPEN` |
-| `Gtk.CssProvider` | 1 | — | — | not a widget; holds generated style-scheme CSS, added at `PRIORITY_USER` for the display |
-
-App actions: `app.quit`, `app.new-window`.
-
-Accelerators (`ACTION_ACCELS`), the full list:
-
-| Action | Accel |
-|---|---|
-| `win.apply` | `<Ctrl>Return` |
-| `win.copy` | `<Ctrl><Shift>c` |
-| `win.open-preferences` | `<Ctrl>comma` |
-| `win.load-file` | `<Ctrl>o` |
-| `win.save-as` | `<Ctrl>s` |
-| `win.toggle-search` | `<Alt>s` |
-| `win.jump-to-args` | `<Ctrl>e` |
-| `window.close` | `<Ctrl>w` |
-| `app.quit` | `<Ctrl>q` |
-| `app.new-window` | `<Ctrl>n` |
-
-Behaviour: `activate` → one new window; `open` → one window per file, each
-`load_from`'d; `shutdown` → saves the active window's geometry (following
-`transient_for` if a dialog is focused). Holds the static `settings` and
-`tools` singletons, and the `style-scheme` property whose setter forces
-`Adw.ColorScheme.FORCE_DARK`/`FORCE_LIGHT`, reloads the recoloring CSS and
-writes `style-scheme` back to GSettings.
-
-Port note: the house style uses `Gtk::Application`, not `Adwaita::Application`
-(the binding is broken) — `lib/textpieces/application.rb` already does this.
-
-## 2. `src/widgets/Window.vala` + `resources/ui/Window.blp` — the main window
-
-| Widget | × | CSS | Signals / actions | Notes |
-|---|---:|---|---|---|
-| `Adw.ApplicationWindow` | 1 | — | `close_request` → `save_window_size` | `focus-widget: editor`; geometry restored from settings |
-| `Gtk.Box` | 2 | — / `linked` | — | vertical root; the linked Apply/Copy pair |
-| `Adw.HeaderBar` | 1 | — | — | `headerbar` |
-| `Gtk.Revealer` | 1 | — | — | crossfade; `reveal-child` bound to `search_bar.search-mode-enabled` **inverted** |
-| `Gtk.Button` | 4 | 2× `suggested-action` | `win.apply`, `win.copy`, `win.save-as`, `win.load-file` | labels `_Apply`; icons `edit-copy-symbolic`, `document-save-symbolic`, `document-open-symbolic`; tooltips Apply Selected Tool / Copy / Save to File / Load from File |
-| `Gtk.ToggleButton` | 1 | `flat`, `heading` | `toggled` → `on_search_toggled` | `tool_button`, the window title |
-| `Adw.ButtonContent` | 1 | — | — | `tool_button_content`; label/icon follow the selected tool, else "Select tool" / `applications-utilities-symbolic` |
-| `Gtk.MenuButton` | 1 | — | `menu-model: app-menu` | `open-menu-symbolic`, primary, tooltip Main Menu |
-| `Gtk.SearchBar` | 1 | — | `search-mode-enabled` ↔ `tool_button.active` **bidirectional** | `search_bar` |
-| `TextPieces.SearchEntry` | 1 | — | — | hosted in the search bar, handed to `Search` |
-| `Gtk.Stack` | 1 | — | — | `content_stack`, crossfade, pages `editor` / `search` |
-| `TextPieces.Editor` | 1 | — | — | `vexpand` |
-| `TextPieces.Search` | 1 | — | `tool-selected` → `on_tool_selected` | `search-entry: search_entry` |
-
-Window actions (`ACTION_ENTRIES`), all ten: `win.apply`,
-`win.open-preferences`, `win.about`, `win.copy`, `win.tools-settings`,
-`win.toggle-search`, `win.save-as`, `win.load-file`, `win.jump-to-args`,
-`win.find`. Plus the GTK-provided `win.show-help-overlay` and `window.close`.
-
-`selected_tool` is the window's state: persisted to the `selected-tool`
-GSettings key by script name, restored at construct (and reset with a log
-message if the script is gone), cleared when `ToolsController::delete_tool`
-fires for it, and on every change it updates the button content, enables or
-disables `win.apply`, pushes the tool's translated arguments into the editor
-and re-runs `editor.update_editor_margin` on idle.
-
-`action_apply` runs the tool over the editor's selection (or the whole buffer),
-toasts stderr, replaces the selection with stdout.
-
-Conditional: Apply/Copy are revealed only when the tool search is closed.
-
-## 3. `resources/ui/Window.blp` — the primary menu (`menu app-menu`)
-
-Three sections, six items:
-
-| Section | Label | Action |
-|---|---|---|
-| 1 | `_New Window` | `app.new-window` |
-| 2 | `_Find/Replace…` | `win.find` |
-| 3 | `_Preferences` | `win.open-preferences` |
-| 3 | `_Keyboard Shortcuts` | `win.show-help-overlay` |
-| 3 | `_About Text Pieces` | `win.about` |
-
-All `use-underline`. No `custom:` slots.
-
-## 4. `src/widgets/Window.vala` (`action_about`) — the About dialog
-
-`Adw.AboutWindow`, built in code: icon `com.github.liferooter.textpieces`,
-name "Text Pieces", comments "Transform text without using random websites",
-version from `Config.VERSION`, licence `GPL_3_0`, website
-`https://github.com/liferooter/textpieces`, issue URL `.../issues/new`,
-artists "Tobias Bernard https://tobiasbernard.com", developers
-"Gleb Smirnov <glebsmirnov0708@gmail.com>", developer name "Gleb Smirnov",
-`translator_credits` from the catalogue. Transient for the window.
-
-## 5. `src/widgets/Window.vala` — the file chooser dialogs
-
-Two `Gtk.FileChooserNative`s, modal and transient: `SAVE` titled "Save to File"
-(`win.save-as`) and `OPEN` titled "Load from File" (`win.load-file`). Both
-no-op on a null file.
-
-## 6. `src/widgets/Window.vala` — the file error dialog
-
-`Gtk.MessageDialog`, `MODAL | DESTROY_WITH_PARENT`, `WARNING`, `CLOSE`,
-destroyed on response. Two messages: `Can't load from file: %s` and
-`Can't save to file: %s`.
-
-## 7. `src/widgets/Editor.vala` + `resources/ui/Editor.blp` — the editor
-
-| Widget | × | CSS | Signals / actions | Notes |
-|---|---:|---|---|---|
-| `Adw.Bin` | 1 | — | `grab_focus` override → the source view | the template root |
-| `Adw.ToastOverlay` | 1 | — | — | `message_overlay`; `show_message` adds an `Adw.Toast`, priority HIGH, timeout 2 s |
-| `Gtk.Overlay` | 1 | — | — | source view below, controls above |
-| `Gtk.ScrolledWindow` | 1 | — | — | |
-| `GtkSource.View` | 1 | `monospace` (via the property) | drop target | monospace, auto-indent, line numbers, smart backspace, smart home/end `before`, top margin 6 |
-| `Gtk.Box` | 2 | — / `linked`, `editor-overlay` | — | overlay column (valign start, halign end); `arguments_box`, width 300, vertical, spacing 3 |
-| `TextPieces.SearchBar` | 1 | — | — | `editor: "editor"` |
-| `Gtk.Entry` | *n* | `monospace` | `activate` → `move_focus(TAB_FORWARD)` | **repeater**: one per argument of the selected tool, `placeholder-text` = translated argument name. `arguments_box.visible` only when *n* > 0 |
-| `Gtk.DropTarget` | 1 | — | `on_drop` | controller on the source view; drops a `File` and loads its contents |
-| `Gtk.CssProvider` | 1 | — | — | not a widget; `.monospace { font-family: … }` from the `font-name` setting |
-
-Settings bound (GET): `tabs-to-spaces` → `insert-spaces-instead-of-tabs`,
-`spaces-in-tab` → `tab-width`, `font-name` → `editor-font`, `wrap-lines` →
-`wrap-lines` (`WORD_CHAR` / `NONE`). Buffer `style-scheme` is bound
-`SYNC_CREATE` to the application's.
-
-Public API the window calls: `get_selection`, `replace_selection`, `copy_text`
-(clipboard + "Text is copied" toast), `set_arguments`, `get_arguments`,
-`jump_to_args`, `save_as`, `load_from`, `show_message`,
-`update_editor_margin` (top margin = the arguments box's measured height, else
-6, with the scroll position corrected).
-
-## 8. `src/widgets/Search.vala` + `resources/ui/Search.blp` — the tool search
-
-| Widget | × | CSS | Signals / actions | Notes |
-|---|---:|---|---|---|
-| `Adw.Bin` | 1 | — | emits `tool-selected` | template root |
-| `Gtk.Stack` | 1 | — | — | `search_stack`, crossfade, pages `search` / `placeholder` |
-| `Gtk.ScrolledWindow` | 1 | — | — | |
-| `Gtk.Viewport` | 1 | — | — | `results_viewport`, `scroll-to-focus`; `reset` zeroes its vadjustment |
-| `Adw.Clamp` | 1 | — | — | max 600 |
-| `Gtk.ListBox` | 1 | `boxed-list` | `row-activated` → `on_row_activated` | `results_listbox`, selection mode `browse`, margins 24, `bind_model(results_model, build_list_row)` |
-| `Gtk.EventControllerKey` | 1 | — | `key-pressed` → `on_search_entry_key` | on the search entry; Up/Down forwarded to the list box, focus handed back |
-
-Models (not widgets): `CustomSorter` + `CustomFilter` over
-`Application.tools.all_tools`, wrapped `FilterListModel` → `SortListModel`.
-Ranking is the `calculate_irrelevance` term-matching algorithm over the tool's
-name and description, translated and untranslated, ties broken by name;
-infinite irrelevance filters the tool out. The search entry's `changed`
-invalidates both and re-picks the stack page; `activate` activates the selected
-row (or row 0).
-
-## 9. `resources/ui/Search.blp` — the "No Tools Found" empty state
-
-`Adw.StatusPage`, icon `applications-utilities-symbolic`, title "No Tools
-Found", holding a `flat` `Gtk.Button` (halign center, action
-`win.tools-settings`) whose `Adw.ButtonContent` is `list-add-symbolic` /
-"_Add Custom Tool". Shown when the filtered model is empty.
-
-## 10. `src/tools/Tool.vala` (`build_list_row`) — a tool row
-
-`Adw.ActionRow`, activatable, `title` = translated name, `subtitle` =
-translated description, `icon-name` = the tool's icon (default
-`applications-utilities-symbolic`). **Repeater**, one per matching tool.
-
-## 11. `src/widgets/SearchBar.vala` + `resources/ui/SearchBar.blp` — find/replace
-
-| Widget | × | CSS | Signals / actions | Notes |
-|---|---:|---|---|---|
-| `Adw.Bin` | 1 | — | — | template root; installs the `search` action group |
-| `Gtk.Revealer` | 1 | — | `child-revealed` → `search_context.highlight` | `search_revealer`, slide-down |
-| `Gtk.Grid` | 1 | `editor-overlay` | — | 3 rows, row/column spacing 6 |
-| `TextPieces.SearchEntry` | 1 | — | `query` → `search_settings.search-text` | row 0 col 0 |
-| `Gtk.Box` | 2 | `linked` / — | — | prev/next pair (homogeneous); the options row |
-| `Gtk.Button` | 6 | 2× plain, `flat`+`circular`, 2× plain | `search.prev-match`, `search.next-match`, `search.hide`, `search.replace`, `search.replace-all` | `go-up-symbolic` "Move to previous match", `go-down-symbolic` "Move to next match", `window-close-symbolic` "Close search", `_Replace`, `Replace _All` |
-| `Gtk.ToggleButton` | 2 | — | — | `search_replace` (`edit-find-replace-symbolic`, "Find and replace"), `search_options` (`preferences-symbolic`, "Toggle search options") |
-| `Gtk.Entry` | 1 | `error` (added on a failed replace, removed by `changed` → `remove_error_style`) | `changed` | `replace_entry`, primary icon `edit-find-replace-symbolic` non-activatable, placeholder "Replace" |
-| `Gtk.CheckButton` | 3 | — | `active` ↔ `use-regex` / `case-sensitive` / `whole-words`, bidirectional | "Re_gular expressions", "_Case sensitive", "Match whole _word only" |
-| `Gtk.ShortcutController` | 2 | — | — | managed scope: `<Ctrl>f` → `search.show`, `<Ctrl>h` → `search.show-replace`; inside the revealer, `Escape` → `search.hide` |
-
-`search` action group, seven actions: `hide`, `show`, `show-replace`,
-`next-match`, `prev-match`, `replace`, `replace-all`. Backed by
-`GtkSource.SearchSettings` (`wrap_around`) and `GtkSource.SearchContext`;
-next/prev are async `forward_async`/`backward_async` against a `Cancellable`
-that `hide` cancels and `show` resets, then `scroll_mark_onscreen`.
-A failed replace adds `error` to the replace entry and rings `error_bell`.
-
-Conditional: the replace entry and both replace buttons are visible only with
-`search_replace.active`; the options box only with `search_options.active`.
-`_Replace` is sensitive on `occurrence_position`, `Replace _All` on
-`occurrences_count`.
-
-## 12. `src/widgets/SearchEntry.vala` + `resources/ui/SearchEntry.blp` — search entry
-
-| Widget | × | CSS | Signals / actions | Notes |
-|---|---:|---|---|---|
-| `Gtk.Widget` subclass | 1 | css **name** `entry` | — | `BoxLayout` layout manager, accessible role `TEXT_BOX`, width-request 300, `grab_focus` forwards to the text |
-| `Gtk.Image` | 1 | — | — | `edit-find-symbolic` |
-| `Gtk.Text` | 1 | — | `text` → `query`; `changed` | placeholder "Find", hexpand/vexpand, 12 width-chars |
-| `Gtk.Label` | 1 | opacity 0.3, xalign 1 | `label` bound to `occurrences_info` | `"%u of %d"`, blank when there are no occurrences |
-| `Gtk.ShortcutController` | 1 | — | — | local scope on the text: `Return` → `search.next-match`, `<Shift>Return` → `search.prev-match` |
-
-Properties `query`, `occurrences_info`, `occurrences_count`,
-`occurrence_position`; `set_context` binds the count from the
-`GtkSource.SearchContext` and recomputes the position from the selection on
-buffer change, cursor move, text change and context notify.
-
-Port note: this is a `Gtk.Widget` subclass with a custom CSS name and layout
-manager. Composing an `Adw.Bin`/`Gtk.Box` with the `entry` style class is the
-pragmatic Ruby equivalent — check the `ruby-gtk` skill before subclassing.
-
-## 13. `src/widgets/preferences/Preferences.vala` + `resources/ui/Preferences.blp`
-
-`Adw.PreferencesWindow`, modal, `can-navigate-back`. Two pages.
-
-**Page `general-settings`** — "_General", icon `preferences-symbolic`:
-
-| Widget | × | CSS | Signals / actions | Notes |
-|---|---:|---|---|---|
-| `Adw.PreferencesGroup` | 2 | — | — | "Editor", "Appearance" |
-| `Adw.ActionRow` | 4 | — | row 1 activatable → `prefs.select-font` | "Editor _Font", "_Wrap Lines", "Tabs to _Spaces", "_Tab Width in Spaces" |
-| `Gtk.Box` + `Gtk.Label` + `Gtk.Image` | 1 each | — | — | font row suffix: `font_label` (bound to `font-name`) and `go-next-symbolic` |
-| `Gtk.Switch` | 2 | — | `settings.wrap-lines`, `settings.tabs-to-spaces` | valign center |
-| `Gtk.SpinButton` | 1 | — | `value` ↔ `spaces-in-tab` | adjustment 1–21 step 1, climb rate 1 |
-| `Adw.Clamp` | 1 | — | — | max 450 |
-| `GtkSource.StyleSchemeChooserWidget` | 1 | — | `style-scheme` ↔ app's, `SYNC_CREATE | BIDIRECTIONAL` | `style_scheme_chooser` |
-
-**Page `custom-tools`** — "T_ools", icon `applications-utilities-symbolic`:
-
-| Widget | × | CSS | Signals / actions | Notes |
-|---|---:|---|---|---|
-| `Adw.PreferencesGroup` | 1 | — | — | "Custom tools" |
-| `Gtk.Button` (header-suffix) | 1 | `flat` | `clicked` → `add_new_tool` | `Adw.ButtonContent` `list-add-symbolic` / "_Add custom tool" |
-| `Gtk.ListBox` | 1 | `boxed-list` | `row-activated` → `edit_tool` | `custom_tools_listbox`, selection none, `bind_model(custom_tools)`; hidden when there are none |
-
-Action groups: `prefs` (`select-font`) and `settings`, built from
-`Settings.create_action` for `wrap-lines` and `tabs-to-spaces`.
-`add_new_tool` → `present_subpage(NewToolPage)`; `edit_tool` →
-`present_subpage(CustomToolPage(tool))`. The window is opened by
-`win.open-preferences`, and by `win.tools-settings` with
-`visible_page_name = "custom-tools"`.
-
-## 14. `resources/ui/Preferences.blp` — the "No Custom Tools" empty state
-
-`Adw.StatusPage`, icon `applications-utilities-symbolic`, title "No Custom
-Tools", description "You can create one", vexpand, valign center, visible when
-`custom_tools_listbox.visible` is **inverted**.
-
-## 15. `src/widgets/preferences/Preferences.vala` — a custom tool row
-
-`Adw.ActionRow`, activatable, title/subtitle from the tool's translated name
-and description, suffix `Gtk.Image` `go-next-symbolic`. **Repeater** over
-`custom_tools`.
-
-## 16. `src/widgets/preferences/Preferences.vala` (`action_select_font`) — font chooser
-
-`Gtk.FontChooserDialog` titled "Select font", modal, transient, level `FAMILY`,
-seeded from `font-name`; on `OK` writes the family back to `font-name`.
-
-## 17. `src/widgets/preferences/ToolSettings.vala` + `resources/ui/ToolSettings.blp`
-
-| Widget | × | CSS | Signals / actions | Notes |
-|---|---:|---|---|---|
-| `Adw.Bin` | 1 | — | — | template root; `is_valid`, `can_edit_script` properties |
-| `Gtk.ScrolledWindow` + `Gtk.Viewport` | 1 each | — | — | `scroll-to-focus` |
-| `Adw.Clamp` | 1 | — | — | max 400 |
-| `Gtk.Box` | 1 | — | — | vertical, margins 20, spacing 20 |
-| `Gtk.ListBox` | 3 | `boxed-list` | `edit_script_list` visible only with `can_edit_script`; `argument_list` visible only when there are arguments | fields list, edit-script list, `argument_list` |
-| `Adw.ActionRow` | 4 | `error` on `name_entry` when the name is blank | row 4 `activated` → `edit_script` | "_Name", "_Description", "_Arguments", "Edit _Script" (activatable, suffix `document-edit-symbolic`) |
-| `Gtk.Entry` | 2 | — | `name_entry` `activate` → focus the description entry | `name_entry` ↔ `tool.name` (bidirectional, rejects blank), `description_entry` ↔ `tool.description` |
-| `Gtk.SpinButton` | 1 | — | `value_changed` grows/shrinks the argument model | `arguments_number`, adjustment 0–100 step 1 |
-| `Gtk.Image` | 1 | — | — | `document-edit-symbolic` |
-
-`is_valid` is "name is not empty", bound `SYNC_CREATE` from the name entry —
-it is what reveals NewToolPage's Create button. `edit_script` opens the script
-through `Xdp.Portal.open_uri` (`ASK | WRITABLE`).
-
-## 18. `src/widgets/preferences/ToolSettings.vala` — an argument row
-
-`Adw.ActionRow` titled `Argument %d` (1-based), `activatable_widget` = a
-valign-center `Gtk.Entry` added as its suffix, entry text ↔ the argument's
-name bidirectionally. **Repeater** over the private `Argument` list store;
-`items_changed` rewrites `tool.arguments` and re-indexes.
-
-## 19. `src/widgets/preferences/pages/CustomToolPage.vala` + `.blp` — edit a tool
-
-| Widget | × | CSS | Signals / actions | Notes |
-|---|---:|---|---|---|
-| `Gtk.Box` | 1 | — | `unmap` → commit the tools index, toast on failure | template root, vertical |
-| `Adw.HeaderBar` | 1 | — | — | no start/end title buttons |
-| `Gtk.Button` | 2 | — / `destructive-action` | `clicked` → `go_back`; `clicked` → `delete_tool` **then** `go_back` | `go-previous-symbolic`; "D_elete" |
-| `Gtk.Label` | 1 | `heading` | — | "Edit Tool" |
-| `TextPieces.ToolSettings` | 1 | — | — | `can-edit-script: true` |
-
-## 20. `src/widgets/preferences/pages/NewToolPage.vala` + `.blp` — create a tool
-
-| Widget | × | CSS | Signals / actions | Notes |
-|---|---:|---|---|---|
-| `Gtk.Box` | 1 | — | — | template root, vertical |
-| `Adw.HeaderBar` | 1 | — | — | no start/end title buttons |
-| `Gtk.Button` | 2 | — / `suggested-action` | `clicked` → `go_back`; `clicked` → `create` **then** `go_back` | `go-previous-symbolic`; "_Create" |
-| `Gtk.Label` | 1 | `heading` | — | "New Tool" |
-| `Gtk.Revealer` | 1 | — | `reveal-child` bound to `tool_settings.is_valid` | crossfade; hides Create until the name is non-empty |
-| `TextPieces.ToolSettings` | 1 | — | — | `can-edit-script` left false |
-
-`create` ensures `~/.local/share/textpieces/scripts`, generates
-`name-<8 hex>` via a SHA256 salt, copies `scripts/template` in, chmods 0750,
-appends the tool, commits, and opens the script in the user's editor. Commit
-failures land as an `Adw.Toast` on the preferences window.
-
-## 21. `resources/ui/ShortcutsWindow.blp` — the shortcuts window
-
-`Gtk.ShortcutsWindow` (`gtk/help-overlay.ui`), one section, max height 12, five
-groups and 16 items:
-
-| Group | Items |
-|---|---|
-| General | New window, Keyboard shortcuts, Preferences, Close window, Quit |
-| Tools | Apply, Select tool, "Just to the tool options" (sic — upstream typo) |
-| Undo and Redo | Undo `<ctrl>z`, Redo `<ctrl><shift>z` |
-| Files | Load from file, Save to file |
-| Search and Replace | Search `<ctrl>f`, Replace `<ctrl>h`, Move to previous match `<Shift>Return`, Move to next match `Return` |
-
-Most items name an action and take the accel from the application's
-`ACTION_ACCELS`; the Undo/Redo and Search groups give accelerators literally.
-`Gtk.ShortcutsWindow` is deprecated in GTK 4.18 — the port should use
-`Adw.ShortcutsDialog` (see the pilot's `lib/shortcuts_dialog.rb`) and keep the
-same groups and items.
-
-## 22–28. Non-widget units parity needs
-
-- **`lib/settings.rb`** — the nine GSettings keys with upstream's defaults:
-  `style-scheme` `'Adwaita-dark'`, `font-name` `'Monospace'`, `wrap-lines`
-  `true`, `tabs-to-spaces` `false`, `spaces-in-tab` `4`, `window-width` `800`,
-  `window-height` `500`, `is-maximized` `false`, `selected-tool` `''`.
-  The pilot backs these with a JSON file under `XDG_CONFIG_HOME` rather than an
-  installed schema; do the same here.
-- **`lib/tool.rb`** — the tool model: name/description/arguments translated
-  through the `tools` gettext context, icon, script, `is_system`; `apply`
-  (spawn the script, pipe the text through stdin, capture stdout/stderr,
-  `flatpak-spawn --host` for custom tools in Flatpak), `open` via the file
-  portal, `generate_filename`.
-- **`lib/tools_controller.rb`** — `system_tools` / `custom_tools` /
-  `all_tools` list stores, JSON load and save of `tools.json`
-  (`~/.config/textpieces/tools.json` for custom), `commit` (save, refresh,
-  delete removed scripts), `add_tool` / `delete_tool` signals.
-- **`lib/recoloring.rb`** — turns a GtkSourceView style scheme into
-  app-wide `@define-color` CSS: `is_scheme_dark` (metadata `variant`, the
-  `-dark` suffix, then the HSP brightness test), `generate_css` with the
-  shared/light/dark suffixes, Adwaita schemes skipped.
-- **`lib/utils.rb`** — `ensure_directory_exists`.
-- **`lib/style.rb`** — `resources/style.css` is one rule, `.editor-overlay`
-  (padding 6, `lighter(@window_bg_color)`, radius 9, three-layer box shadow).
-  `style-dark.css` is a licence header only — no rules. The `monospace` class
-  is GTK's own; `linked`, `boxed-list`, `flat`, `circular`, `heading`,
-  `suggested-action`, `destructive-action` and `error` are Adwaita's.
-- **`data/tools.json` + `scripts/`** — 36 system tools, 8 of them taking
-  arguments (Filter/Reverse-Filter Lines by Regex and by Substring, Remove
-  Regex/Substring, Replace Substring/Regex), plus `scripts/template` for new
-  tools. Icons used: `fingerprint-symbolic`, `lock-symbolic`,
-  `unlock-symbolic`, `edit-cut-symbolic`, `rss-symbolic`, `funnel-symbolic`,
-  `applications-utilities-symbolic`, `preferences-symbolic` — the last seven of
-  which upstream **bundles** in `resources/icons/scalable/status/`, because
-  they are not in the system icon theme. The port needs those SVGs on its icon
-  search path.
-- **`po/`** — two catalogues: `po/textpieces.pot` for the UI and
-  `po/tools.pot` for the tool names, descriptions and argument names (looked up
-  with `dpgettext2(null, "tools", …)`). Three languages: `es`, `nl`, `pt_BR`.
-  `po/POTFILES` lists 6 Vala files and all 10 blueprints.
-
----
-
-## Port-only support units
-
-Five files in `lib/` map to no single upstream file. Each stands in for
-something upstream imports and the Ruby bindings do not provide; each carries
-the comment saying so.
-
-| Port file | Stands in for | Why |
-|---|---|---|
-| `lib/search_context.rb` | `GtkSource.SearchContext` + `GtkSource.SearchSettings` | no Ruby bindings; reimplemented over `Gtk::TextBuffer` — wrap-around search, highlight tag, occurrence count and position, replace, replace-all, regex / case / whole-word |
-| `lib/style_scheme.rb` | `GtkSource.StyleScheme` + `StyleSchemeManager` | no Ruby bindings; the three members `Recoloring` needs, over the JSON schemes in `data/style-schemes/` |
-| `lib/accelerator.rb` | Blueprint's `Shortcut { trigger: … action: … }` | no Blueprint compiler and no `Gtk::ShortcutTrigger.parse_string`; builds `Gtk::Shortcut` from `Gtk.accelerator_parse` + `Gtk::NamedAction` |
-| `lib/translation.rb` | `gettext` / `dpgettext2(null, "tools", …)` | the two `po/` catalogues and the `tools` context, read in Ruby |
-| `lib/textpieces.rb` | — | the requires entry point |
-
-`lib/preferences.rb` also substitutes `GtkSource.StyleSchemeChooserWidget`
-(unbound) with a hand-built chooser, and `lib/shortcuts_window.rb` substitutes
-the unbindable `Gtk.ShortcutsWindow` with `Adwaita::ShortcutsDialog`.
-
----
-
-## Scan totals
-
-`component-scan.sh` over upstream (`src/`, `resources/ui/`, `resources/style.css`,
-the gschema) and over `lib/`:
-
-| | rows | widget instances | distinct types | distinct CSS | distinct signals | distinct actions |
-|---|--:|--:|--:|--:|--:|--:|
-| upstream | 209 | 176 | 49 | 9 | 9 | 23 |
-| `lib/` on `ruby` | 198 | 118 | 42 | 11 | 18 | 13 |
-
-Reading the three gaps:
-
-- **CSS: none.** Every class upstream applies is applied in `lib/` too; the
-  port adds one, `entry`, which is `SearchEntry`'s CSS *name* upstream.
-- **Types: 10 upstream names absent from `lib/`,** and every one is an
-  intentional substitution — `Gtk.FontChooserDialog` → `Gtk::FontDialog`,
-  `Gtk.MessageDialog` → `Adwaita::AlertDialog`,
-  `Gtk.ShortcutsSection`/`Group`/`Shortcut` → the `Adwaita::Shortcuts*`
-  family, `GtkSource.Buffer`/`StyleSchemeManager` → `Gtk::TextBuffer` +
-  `lib/style_scheme.rb`, plus `Gtk.Window`/`Gtk.ListBoxRow` reached as
-  superclasses. No upstream widget type is simply unaccounted for.
-- **Instances: 176 vs 118,** which is the expected shape, not a gap of 58
-  widgets: blueprint declares every object in the tree while the house style
-  composes some of them away, and the repeaters (tool rows, argument rows,
-  argument entries) are one memoized method each on the port side.
-
-The signal gap runs the other way (18 vs 9) because the port connects in Ruby
-what blueprint expresses as a property binding.
-
----
-
-## What a parity pass should check next
-
-The unit list is complete, so the open questions are per-component details —
-the ones this survey flagged while reading both sides:
-
-1. `lib/search.rb` — the `calculate_irrelevance` ranking, term for term,
-   against both the translated and untranslated name and description.
-2. `lib/search_context.rb` — the behaviours it reimplements, especially
-   wrap-around, the occurrence position after an edit, and `replace-all`.
-3. `lib/editor.rb` — `update_editor_margin`'s measured height and scroll
-   correction, the drop target, and the five bound settings.
-4. `lib/window.rb` — all ten window actions plus `show-help-overlay`, the
-   `selected-tool` persistence and reset-when-missing, and the Apply/Copy
-   revealer inversion.
-5. `lib/recoloring.rb` — `is_scheme_dark`'s three tests and the
-   shared/light/dark CSS suffixes, with the Adwaita schemes skipped.
-6. `lib/shortcuts_window.rb` — the five groups and 16 items, including
-   upstream's "Just to the tool options" typo.
-7. `po/` — that both catalogues load and the `tools` context resolves for all
-   36 tools and their 8 argument sets.
+# textpieces-rb component inventory
+
+Upstream: `origin/main` (Vala, `src/` + `resources/ui/*.blp`). Port: `ruby`
+branch, `lib/`. One unit per upstream template/class, in the order a user
+meets them.
+
+## Binding-gem defect found during this survey
+
+**`lib/` hand-rolls GtkSourceView instead of using the `gtksourceview5` gem
+that already exists on RubyGems**, and this is not a side detail — it is the
+reason `lib/editor.rb`, `lib/search_bar.rb`, `lib/search_entry.rb`,
+`lib/recoloring.rb`, `lib/style_scheme.rb` and part of `lib/preferences.rb`
+exist as hand-written code at all:
+
+- `lib/editor.rb`'s header comment states: *"Upstream's view is a
+  GtkSource.View, which has no Ruby bindings; this one is a Gtk::TextView."*
+  That claim is false — `gtksourceview5` (and `gtksourceview4`/`3`) are
+  published gems built by the ruby-gnome project providing `GtkSource::View`,
+  `GtkSource::Buffer`, `GtkSource::SearchContext`, `GtkSource::SearchSettings`,
+  `GtkSource::StyleSchemeManager` and `GtkSource::StyleSchemeChooserWidget` —
+  exactly the classes upstream's `Editor.vala`, `SearchBar.vala`,
+  `SearchEntry.vala`, `Recoloring.vala` and `Preferences.vala` use.
+- `lib/style_scheme.rb`'s header repeats the same claim ("GtkSourceView has no
+  Ruby bindings") to justify shipping four hand-authored JSON files under
+  `data/style-schemes/` in place of `GtkSource::StyleSchemeManager`, and
+  `lib/recoloring.rb` reimplements `src/utils/Recoloring.vala`'s colour
+  extraction against that JSON instead of against a real
+  `GtkSource::StyleScheme`.
+- The gemspec has no `gtksourceview*` dependency, and `flake.nix`'s
+  `gtkStack` (the list that feeds both `buildInputs` and `typelibPath`) has no
+  GtkSourceView/`libgtksourceview` entry either, so the typelib is not even
+  wired up to try it.
+- Net effect: the editor is a plain `Gtk::TextView` with no syntax
+  highlighting, no `GtkSource.SearchContext` incremental search/replace, and
+  the style-scheme picker in Preferences is not the real
+  `GtkSourceStyleSchemeChooserWidget` upstream uses — all because a gem that
+  exists was never tried.
+
+This is not this step's job to fix (no app code is written here), but it must
+be wired in — gemspec dependency, `nix/Gemfile`, regenerated lockfile,
+`gtkStack`/`typelibPath` entry for the GtkSourceView typelib, proven with
+`ruby -e 'require "gtksourceview5"; puts GtkSource.constants.size'` — before
+`lib/editor.rb`, `lib/search_bar.rb`, `lib/search_entry.rb`,
+`lib/recoloring.rb` and `lib/style_scheme.rb` are rewritten against it, per the
+earlier instruction to delete hand-rolled code once a real gem is proven.
+
+Also missing on the port side entirely: upstream's
+`data/com.github.liferooter.textpieces.gschema.xml` has no equivalent GSettings
+schema file in the port (`lib/settings.rb` stores the same keys in a JSON file
+under `XDG_CONFIG_HOME` instead — that substitution is explained and may be
+legitimate given GSettings needs a system schema install step, but it means
+the port never proves it reads/writes the same keys the same way).
+
+## Components
+
+| # | Upstream file(s) | → `lib/*.rb` | Kind | Exists? |
+|---|---|---|---|---|
+| 1 | `src/Application.vala` | `lib/textpieces/application.rb` | application class (actions, accelerators, About, new-window) | Yes (176 lines) |
+| 2 | `src/widgets/Window.vala` + `resources/ui/Window.blp` | `lib/window.rb` | main window (`Adw.ApplicationWindow`): headerbar, tool-select toggle, apply/copy buttons, save/load buttons, app-menu, content `Stack` (editor/search pages) | Yes (479 lines) |
+| 3 | `resources/ui/Window.blp`'s `menu app-menu { }` | `lib/window.rb` (menu model inline) | primary menu — 5 items (`new-window`, `find`, `open-preferences`, `show-help-overlay`, `about`) across 3 sections | Yes — verify item-for-item during component-parity |
+| 4 | `src/widgets/Editor.vala` + `resources/ui/Editor.blp` | `lib/editor.rb` | editor pane: `Adw.ToastOverlay` → `Overlay` → `ScrolledWindow`+`GtkSource.View` main child, overlay child = search bar + `arguments_box` (linked/editor-overlay) | Yes (332 lines) — **built on `Gtk::TextView`, not GtkSource.View; see defect above** |
+| 5 | `src/widgets/SearchBar.vala` + `resources/ui/SearchBar.blp` | `lib/search_bar.rb` | in-editor find/replace bar: revealer, grid of entry/buttons, regex/case/whole-word checkbuttons, two `ShortcutController`s (`Escape`, `<Ctrl>f`, `<Ctrl>h`) | Yes (364 lines) — depends on `GtkSource.SearchContext`, see `lib/search_context.rb` |
+| 6 | `src/widgets/SearchEntry.vala` + `resources/ui/SearchEntry.blp` | `lib/search_entry.rb` | the find entry itself: icon, `Text`, occurrence-count label, two local shortcuts (`Return`, `<Shift>Return`) | Yes (148 lines) |
+| 7 | (no upstream file — `GtkSource.SearchContext`) | `lib/search_context.rb` | search/replace engine the gem would provide | Yes (219 lines) — hand-rolled; should be `GtkSource::SearchContext` once wired |
+| 8 | `src/widgets/Search.vala` + `resources/ui/Search.blp` | `lib/search.rb` | tool picker page: `Stack` of results `ListBox` (`boxed-list`, `row-activated`) vs. `Adw.StatusPage` "No Tools Found" placeholder with "Add Custom Tool" button | Yes (311 lines) |
+| 9 | `src/tools/Tool.vala` | `lib/tool.rb` | one tool's model: `ScriptResult` struct + `Tool` object (script execution) | Yes (215 lines) |
+| 10 | `src/tools/ToolsController.vala` | `lib/tools_controller.rb` | loads `data/tools.json` + user custom tools, exposes the active list | Yes (204 lines) |
+| 11 | (`Search.vala`'s row widget, implicit) | `lib/tool_row.rb` | one row in the tool-picker `ListBox` | Yes (21 lines) |
+| 12 | `src/widgets/preferences/Preferences.vala` + `resources/ui/Preferences.blp` | `lib/preferences.rb` | `Adw.PreferencesWindow`, 2 pages: General (font row, wrap-lines/tabs-to-spaces/tab-width rows, `GtkSourceStyleSchemeChooserWidget` in a Clamp) and Tools (custom-tools `ListBox` + add button + "No Custom Tools" `Adw.StatusPage`) | Yes (381 lines) — style-scheme chooser is hand-rolled (see defect) |
+| 13 | `src/widgets/preferences/ToolSettings.vala` + `resources/ui/ToolSettings.blp` | `lib/tool_settings.rb` | shared form for new/edit tool: name/description/arguments-count `Adw.ActionRow`s, "Edit Script" row, dynamic `argument_list` | Yes (245 lines) |
+| 14 | `ToolSettings.vala`'s nested `private class Argument` | `lib/argument_row.rb` | one argument's row in `argument_list` (index + name) | Yes (36 lines) |
+| 15 | `src/widgets/preferences/pages/CustomToolPage.vala` + `resources/ui/CustomToolPage.blp` | `lib/custom_tool_page.rb` | edit-existing-tool page: headerbar (back, title, Delete), embeds `ToolSettings` with `can-edit-script: true` | Yes (105 lines) |
+| 16 | `src/widgets/preferences/pages/NewToolPage.vala` + `resources/ui/NewToolPage.blp` | `lib/new_tool_page.rb` | new-tool page: headerbar (back, title, Create revealed when valid), embeds `ToolSettings` | Yes (123 lines) |
+| 17 | (`Preferences.vala`'s custom-tools `ListBox` row, implicit) | `lib/custom_tool_row.rb` | one row in the custom-tools list | Yes (22 lines) |
+| 18 | `resources/ui/ShortcutsWindow.blp` (no backing `.vala`) | `lib/shortcuts_window.rb` | `Gtk.ShortcutsWindow`: 5 groups (General, Tools, Undo/Redo, Files, Search&Replace), ~15 shortcut rows | Yes (102 lines) |
+| 19 | `src/utils/Recoloring.vala` | `lib/recoloring.rb` | derives UI accent colours from the active `GtkSource.StyleScheme` | Yes (272 lines) — reimplemented against hand-rolled JSON schemes, see defect |
+| 20 | (no upstream file — `GtkSource.StyleScheme`) | `lib/style_scheme.rb` | style-scheme model the gem would provide | Yes (85 lines) — hand-rolled; should be `GtkSource::StyleScheme`/`StyleSchemeManager` once wired |
+| 21 | `src/utils/Utils.vala` | `lib/utils.rb` | small free functions | Yes (31 lines) |
+| 22 | `data/com.github.liferooter.textpieces.gschema.xml` | `lib/settings.rb` | app settings (9 keys: style-scheme, font-name, wrap-lines, tabs-to-spaces, spaces-in-tab, window-width/height, is-maximized, selected-tool) | Yes (111 lines) — JSON-file substitute, no port-side `.gschema.xml` exists |
+| 23 | `src/Application.vala`'s `ActionAccel` struct + accelerator setup | `lib/accelerator.rb` | accelerator-string helper | Yes (37 lines) |
+| 24 | `po/*.po`, `po/textpieces.pot`, `po/tools.pot` | `lib/translation.rb` + `po/*.po` | i18n: message catalogue (es, nl, pt_BR) plus the separate `tools.pot` for `data/tools.json`'s bundled tool names | Present on both sides — run `translation-parity` to confirm msgid-for-msgid |
+| 25 | `data/tools.json` | `data/tools.json` | bundled built-in tools (base64, hashes, JSON/YAML/XML formatting, regex filters, RSS-from-OPML, etc.) | Present — diff against upstream's `data/tools.json` for tool-for-tool parity (not done in this survey) |
+| 26 | `data/com.github.liferooter.textpieces.appdata.xml.in`, `.desktop.in` | `data/org.rubygtkproject.Textpieces.metainfo.xml`, `.desktop` | app metadata (About dialog content, desktop launcher) | Present, renamed to the port's own app ID — compare content fields (description, screenshots, categories) for parity, not done in this survey |
+| 27 | `resources/style.css`, `resources/style-dark.css` | *(not located under `lib/` or `data/` in this survey — needs a dedicated pass)* | editor-overlay/linked CSS classes used throughout `Editor.blp`/`SearchBar.blp` | **Unclear — needs follow-up**: grep for where the port defines `.editor-overlay`/`.linked` styling |
+
+## Not yet surveyed (next passes)
+
+- **`data/tools.json` tool-for-tool diff** — upstream vs. port, to confirm every
+  built-in script/formatter/filter tool is present with the same command and
+  the same translatable name.
+- **CSS stylesheet parity** (`resources/style.css`, `resources/style-dark.css`)
+  — where does the port define the equivalent classes, and does it have a
+  dark-mode variant.
+- **`translation-parity`** — msgid-by-msgid census of `po/textpieces.pot` and
+  `po/tools.pot` against the port's marked strings, confirming `es`, `nl`,
+  `pt_BR` are all still carried.
+- **`component-parity`** — widget-by-widget, CSS-class-by-CSS-class,
+  signal-by-signal comparison per file listed above, once the GtkSourceView
+  gem defect is resolved (several rows above will change shape — e.g.
+  `Gtk::TextView` → `GtkSource::View` changes what signals/properties
+  `lib/editor.rb` has to carry).
+- **`test-parity`** — upstream has no `tests/` directory in `git ls-tree`, so
+  there may be nothing to port here; confirm by checking for a Vala test
+  harness this listing missed.
