@@ -11,76 +11,33 @@ manifest, two stylesheets, 36 bundled tool scripts and two gettext catalogues.
 
 `lib/` on `ruby` now holds **25 files** of app code: every one of the 30 units
 in the map below has a port file, and the bundled data (`data/tools.json`, the
-37 `scripts/`, `data/style-schemes/`, `data/icons/`) and the `po/` catalogues
-are in place as well. **Every user-facing component below exists**; what is
-left is per-component parity detail, not missing units, so this inventory is
-now the checklist a `component-parity` pass runs against rather than a list of
-work not started.
+`scripts/`, `data/icons/`) and the `po/` catalogues are in place as well.
+**Every user-facing component below exists**; what is left is per-component
+parity detail, not missing units, so this inventory is now the checklist a
+`component-parity` pass runs against rather than a list of work not started.
 
-Five port files have no single upstream counterpart. Four of them exist
-because of a real binding gap; one does not, and that one is a defect — see
-below.
+## Binding-gem defect — RESOLVED since this inventory was first written
 
-## Binding-gem defect found during this survey
+An earlier pass of this survey found that `lib/editor.rb`,
+`lib/search_context.rb`, `lib/style_scheme.rb`, `lib/recoloring.rb` and the
+style-scheme chooser in `lib/preferences.rb` hand-rolled `GtkSource::View`,
+`SearchContext`/`SearchSettings`, `StyleScheme`/`StyleSchemeManager` and
+`StyleSchemeChooserWidget` on the false claim that "GtkSourceView has no Ruby
+bindings" — `gtksourceview5` provides every one of those classes.
 
-**The claim in `lib/editor.rb` and `lib/style_scheme.rb` that "GtkSourceView
-has no Ruby bindings" is false, and the hand-rolled code built on that false
-claim is the defect this survey exists to catch.** `gtksourceview5` (and
-`gtksourceview4`/`gtksourceview3`) are gems published by the ruby-gnome
-project on RubyGems providing `GtkSource::View`, `GtkSource::Buffer`,
-`GtkSource::SearchContext`, `GtkSource::SearchSettings`,
-`GtkSource::StyleScheme`, `GtkSource::StyleSchemeManager` and
-`GtkSource::StyleSchemeChooserWidget` — exactly the classes
-`src/widgets/Editor.vala`, `src/widgets/SearchBar.vala`,
-`src/widgets/SearchEntry.vala`, `src/utils/Recoloring.vala` and
-`src/widgets/preferences/Preferences.vala` use. Confirmed present on
-RubyGems during this survey (`gem list -r gtksourceview` lists
-`gtksourceview5 (4.4.0)`).
-
-Neither the gemspec nor `flake.nix`'s `gtkStack` (the list that feeds both
-`buildInputs` and `typelibPath`) has a GtkSourceView/`libgtksourceview`
-entry, so the typelib was never even wired up to try the gem. Instead:
-
-- `lib/editor.rb` is a plain `Gtk::TextView`/`Gtk::TextBuffer`, so the editor
-  has no syntax highlighting it should inherit when the real
-  `GtkSource::View` is wired in (even though upstream itself doesn't enable a
-  language, the buffer type is still the wrong class to build everything
-  else — search, style schemes — against).
-- `lib/search_context.rb` reimplements `GtkSource::SearchContext` +
-  `GtkSource::SearchSettings` from scratch over `Gtk::TextBuffer`.
-- `lib/style_scheme.rb` reimplements `GtkSource::StyleScheme` +
-  `StyleSchemeManager` from scratch over hand-authored JSON files in
-  `data/style-schemes/`, and `lib/recoloring.rb`'s port of
-  `Recoloring.vala` runs against that JSON model instead of a real
-  `GtkSource::StyleScheme`.
-- `lib/preferences.rb` hand-builds a style-scheme chooser instead of using
-  `GtkSource::StyleSchemeChooserWidget`.
-
-This is not this survey step's job to fix (no app code is written here), but
-it is not a "no bindings exist" case the way `Gtk.ShortcutsWindow` genuinely
-has no good 1:1 or `GLib.Settings` genuinely needs a system schema install —
-it needs the gem wired in (gemspec dependency, `nix/Gemfile`, regenerated
-lockfile, a GtkSourceView entry in `gtkStack`/`typelibPath`, proven with
-`ruby -e 'require "gtksourceview5"; puts GtkSource.constants.size'`) and the
-five files above rewritten against it, per the standing instruction to delete
-hand-rolled code once a real gem is proven.
-
-## Scope note
-
-`src/widgets/SearchBar.vala`, `src/widgets/SearchEntry.vala` and
-`src/widgets/Editor.vala` all lean on **GtkSourceView 5** —
-`GtkSource.View`, `GtkSource.Buffer`, `GtkSource.SearchContext`,
-`GtkSource.SearchSettings`, `GtkSource.StyleScheme`,
-`GtkSource.StyleSchemeManager` and `GtkSource.StyleSchemeChooserWidget`. As
-the defect note above says, that **does** have Ruby bindings
-(`gtksourceview5`) — they are just not wired into this port yet. Today the
-port reproduces the behaviour by hand instead: `Gtk::TextView` over a plain
-`Gtk::TextBuffer` for the editor, `lib/search_context.rb` for the search
-context and settings, `lib/style_scheme.rb` plus `data/style-schemes/*.json`
-for the schemes, and a hand-built chooser in `lib/preferences.rb`. Syntax
-highlighting is the one thing not reproduced — upstream does not enable it
-either (the editor shows plain text) — but that is the one part of this gap
-that costs no parity; the rest should be rebuilt on the real gem.
+Commit `f273107` ("Wire the gtksourceview5 gem and delete the hand-rolled
+search/scheme code it replaces") has since fixed this: `gtksourceview5` is a
+runtime dependency in the gemspec, `nix/Gemfile` and the regenerated lock, and
+is in `flake.nix`'s `gtkStack`/`typelibPath`. `lib/editor.rb` now builds a real
+`GtkSource::View`/`Buffer`, `lib/search_context.rb` is a thin adapter over the
+real `GtkSource::SearchContext`/`SearchSettings`, `lib/recoloring.rb` reads a
+real `GtkSource::StyleScheme`, and `lib/preferences.rb` uses the real
+`GtkSource::StyleSchemeChooserWidget`. `lib/style_scheme.rb` and
+`data/style-schemes/*.json` (the hand-rolled replacements) no longer exist.
+`.reports/component-parity.md`'s 2026-11-07 re-audit confirms the gem loads
+live and is a genuine dependency of the packaged build, not just the dev
+shell. **No action needed on this point in future passes** — it is kept here,
+marked resolved, so the history of the finding is not lost.
 
 ---
 
@@ -494,48 +451,51 @@ same groups and items.
 
 ## Port-only support units
 
-Five files in `lib/` map to no single upstream file. The comment in each one
-claims it stands in for something the Ruby bindings do not provide — true for
-three of them, **false for two**, per the defect note above:
+Files in `lib/` that map to no single upstream file. The comment in each one
+claims it stands in for something the Ruby bindings do not provide:
 
 | Port file | Stands in for | Why | Verified? |
 |---|---|---|---|---|
-| `lib/search_context.rb` | `GtkSource.SearchContext` + `GtkSource.SearchSettings` | reimplemented over `Gtk::TextBuffer` — wrap-around search, highlight tag, occurrence count and position, replace, replace-all, regex / case / whole-word | **"no Ruby bindings" is false** — `gtksourceview5` provides both; this file should not exist once the gem is wired in |
-| `lib/style_scheme.rb` | `GtkSource.StyleScheme` + `StyleSchemeManager` | the three members `Recoloring` needs, over the JSON schemes in `data/style-schemes/` | **"no Ruby bindings" is false** — `gtksourceview5` provides both; this file should not exist once the gem is wired in |
+| `lib/search_context.rb` | `GtkSource.SearchContext` + `GtkSource.SearchSettings` | **RESOLVED** — was reimplemented over `Gtk::TextBuffer` on the false "no Ruby bindings" claim; is now a thin adapter over the real `gtksourceview5` classes (see the resolved defect note above) |
 | `lib/accelerator.rb` | Blueprint's `Shortcut { trigger: … action: … }` | no Blueprint compiler and no `Gtk::ShortcutTrigger.parse_string`; builds `Gtk::Shortcut` from `Gtk.accelerator_parse` + `Gtk::NamedAction` | not checked in this survey — confirm there really is no `Gtk::ShortcutTrigger.parse_string` in the `gtk4` gem before trusting this one too |
 | `lib/translation.rb` | `gettext` / `dpgettext2(null, "tools", …)` | the two `po/` catalogues and the `tools` context, read in Ruby | plausible — not a GTK binding gap, a gettext API difference |
 | `lib/textpieces.rb` | — | the requires entry point | not a substitution, no claim to verify |
 
-`lib/preferences.rb` also substitutes `GtkSource.StyleSchemeChooserWidget`
-with a hand-built chooser — also false per the defect note, `gtksourceview5`
-provides it — and `lib/shortcuts_window.rb` substitutes the deprecated
-`Gtk.ShortcutsWindow` with `Adwaita::ShortcutsDialog`, which is a real and
-reasonable substitution (not a missing-binding claim).
+`lib/style_scheme.rb`, the JSON-backed stand-in for
+`GtkSource.StyleScheme`/`StyleSchemeManager`, no longer exists — it was
+deleted when `lib/recoloring.rb` and `lib/preferences.rb`'s style-scheme
+chooser were rewritten against the real `gtksourceview5` classes (see the
+resolved defect note above). `lib/shortcuts_window.rb` substitutes the
+deprecated `Gtk.ShortcutsWindow` with `Adwaita::ShortcutsDialog`, which is a
+real and reasonable substitution (not a missing-binding claim).
 
 ---
 
 ## Scan totals
 
 `component-scan.sh` over upstream (`src/`, `resources/ui/`, `resources/style.css`,
-the gschema) and over `lib/`:
+the gschema) and over `lib/` as it stood before the `gtksourceview5` fix
+(`f273107`) — kept as a historical snapshot rather than re-run, since the
+types gap it reports below is now closed:
 
 | | rows | widget instances | distinct types | distinct CSS | distinct signals | distinct actions |
 |---|--:|--:|--:|--:|--:|--:|
 | upstream | 209 | 176 | 49 | 9 | 9 | 23 |
-| `lib/` on `ruby` | 198 | 118 | 42 | 11 | 18 | 13 |
+| `lib/` on `ruby` (pre-`f273107`) | 198 | 118 | 42 | 11 | 18 | 13 |
 
 Reading the three gaps:
 
 - **CSS: none.** Every class upstream applies is applied in `lib/` too; the
   port adds one, `entry`, which is `SearchEntry`'s CSS *name* upstream.
-- **Types: 10 upstream names absent from `lib/`.** Three substitutions are
-  real and reasonable — `Gtk.FontChooserDialog` → `Gtk::FontDialog`,
-  `Gtk.MessageDialog` → `Adwaita::AlertDialog`,
+- **Types: 10 upstream names absent from `lib/`, at the time of this scan.**
+  Three substitutions are real and reasonable — `Gtk.FontChooserDialog` →
+  `Gtk::FontDialog`, `Gtk.MessageDialog` → `Adwaita::AlertDialog`,
   `Gtk.ShortcutsSection`/`Group`/`Shortcut` → the `Adwaita::Shortcuts*`
-  family — plus `Gtk.Window`/`Gtk.ListBoxRow` reached as superclasses. But
+  family — plus `Gtk.Window`/`Gtk.ListBoxRow` reached as superclasses.
   `GtkSource.Buffer`/`StyleSchemeManager` → `Gtk::TextBuffer` +
-  `lib/style_scheme.rb` is **not** a reasonable substitution: per the defect
-  note above, `gtksourceview5` provides both and was never tried.
+  `lib/style_scheme.rb` was the one unreasonable substitution this scan
+  caught; it is the gap `f273107` closed (see the resolved defect note
+  above), so a re-run now would show `gtksourceview5`'s real types instead.
 - **Instances: 176 vs 118,** which is the expected shape, not a gap of 58
   widgets: blueprint declares every object in the tree while the house style
   composes some of them away, and the repeaters (tool rows, argument rows,
@@ -566,10 +526,9 @@ the ones this survey flagged while reading both sides:
    upstream's "Just to the tool options" typo.
 7. `po/` — that both catalogues load and the `tools` context resolves for all
    36 tools and their 8 argument sets.
-8. **The `gtksourceview5` binding gem** — wire it into the gemspec,
-   `nix/Gemfile`, the regenerated lockfile and `flake.nix`'s
-   `gtkStack`/`typelibPath`, then rewrite `lib/editor.rb`,
-   `lib/search_context.rb`, `lib/search_bar.rb`, `lib/search_entry.rb`,
-   `lib/style_scheme.rb`, `lib/recoloring.rb` and the style-scheme chooser in
-   `lib/preferences.rb` against the real `GtkSource::*` classes instead of
-   the hand-rolled substitutes, per the defect note above.
+8. ~~The `gtksourceview5` binding gem~~ — **done** in `f273107`; see the
+   resolved defect note above. Still worth a periodic check in future passes
+   that the dependency stays declared, required and exercised (gemspec,
+   `nix/Gemfile`, `flake.nix`'s `gtkStack`/`typelibPath`, and a drive-script
+   assertion on a real `GtkSource::*` result), per the standing instruction
+   not to let a wired-in gem regress.
