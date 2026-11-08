@@ -140,3 +140,82 @@ reading the source against all four catalogues by hand — which is what this
 pass did. The `rake pot` comment describing nonexistent tooling compounds
 this: there is currently no mechanical way to even notice these two strings
 are missing, let alone add them.
+
+---
+
+# Re-verification — 2026-11-08
+
+| | |
+|---|---|
+| Upstream | `main` @ `6a6c41e` (unchanged) |
+| Port | `ruby` @ `535b47b` |
+
+## The "2 strings in no catalogue at all" gap: closed
+
+`535b47b` adds both as new entries to `po/textpieces.pot`:
+
+```
+$ grep -A2 'msgid "Keyboard Shortcuts"\|msgid "_Close"' po/textpieces.pot
+#. Translators: not an upstream string. Upstream's native Gtk.ShortcutsWindow
+#. supplies its own translated window title from GTK's own locale data; ...
+#: lib/shortcuts_window.rb:67
+msgid "Keyboard Shortcuts"
+msgstr ""
+
+#. Translators: not an upstream string. The close button of the port's
+#. file-error alert dialog (Adw.AlertDialog), which upstream's own dialog
+#. does not need to supply as a separate msgid.
+#: lib/window.rb:470
+msgid "_Close"
+msgstr ""
+```
+
+Each carries a translator comment stating plainly that it is not an
+upstream string and why the port had to add it — the honest form this
+skill asks for, not a silent catalogue edit. **Closed** as a translation-
+parity gap: the strings now have a mechanical extraction path.
+
+They remain, correctly, untranslated in `es.po`/`nl.po`/`pt_BR.po` (0 hits
+in all three). This is not a new gap: the fork is not registered on
+l10n.gnome.org, these are port-introduced ("Extra") strings by the skill's
+own definition, and the skill is explicit that Extra strings are "not free"
+— English-only until a translator acts — never that they must be
+hand-translated by whoever adds them. They are listed here, in the `##
+Extra` sense, rather than silently left unmentioned.
+
+## The `rake pot` false-tooling-claim: closed
+
+`535b47b` also rewrites the `flake.nix` comment that previously claimed a
+`rake pot` task drives `rxgettext`. It now reads:
+
+```
+# rxgettext, the extractor GNU xgettext's `--language=Ruby` mode
+# shells out to; without it that mode fails outright. No rake
+# task in this repo drives it yet (`po/textpieces.pot` is
+# maintained by hand), but the dev shell carries the tool so one
+# can be added without a second round of Nix wiring.
+```
+
+Confirmed live: `nix develop --command rake -T 2>&1 | grep -i pot` still
+returns nothing, and the comment no longer claims otherwise. This closes
+the false-green risk this report and `accountability-ensurance.md` flagged
+— the comment now accurately describes the catalogue as hand-maintained
+with no extraction tooling, rather than naming a task that does not exist.
+
+## Still open, unchanged
+
+- No `rake pot`/equivalent extraction task exists. Any future string added
+  as a literal still has to be hand-added to `po/textpieces.pot`, as
+  `535b47b` itself was — there is nothing mechanical catching a *next*
+  occurrence of this exact gap.
+- `msgfmt -c` validation and a live `LANGUAGE=es`/`nl` on-screen check were
+  not run this pass either (same unrun-check limitation as before).
+- The 23 unexamined component-parity units (see that report's
+  re-verification) may still hide further unmarked or interpolated strings
+  that a file-by-file read has not yet reached.
+
+## Verdict
+
+**Not clean, but the two findings this report raised are both genuinely
+closed.** The remaining open items are pre-existing tooling/coverage gaps,
+not new regressions, and are carried forward rather than claimed fixed.

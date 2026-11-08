@@ -100,3 +100,52 @@ resolution since the harness was dead weight, not a coverage loss. The
 `rake pot` comment in `flake.nix` naming a nonexistent task is a new,
 smaller instance of the same "command that looks real but isn't" pattern,
 and should not be left standing uncorrected now that it has been found.
+
+---
+
+# Re-verification — 2026-11-08
+
+| | |
+|---|---|
+| Upstream | `main` @ `6a6c41e` (unchanged, still 0 tests) |
+| Port | `ruby` @ `535b47b` |
+
+## Drive suite, re-run live for this pass
+
+```
+$ nix develop --command xvfb-run -a ruby test/drive_window.rb
+...
+82 of 82 checks passed
+DRIVE OK
+```
+
+Run in this session, not taken on the harness's own word. Count unchanged
+from the prior pass (82/82) — `535b47b` and `7aaa797` touched `flake.nix`,
+`po/textpieces.pot` and a skill script, none of which the drive exercises
+directly, and the live re-run confirms no regression.
+
+## The `rake pot` tooling claim: closed, see translation-parity.md
+
+The flake.nix comment this report flagged as a "command that looks real but
+isn't" has been rewritten in `535b47b` to state plainly that no such task
+exists and the catalogue is hand-maintained. Confirmed by reading the
+current comment and by re-running `rake -T | grep pot` (still empty, now
+matching what the comment says rather than contradicting it). **Closed.**
+
+## Still open
+
+- Parity remains 0/0 trivially (upstream ships no tests) — unchanged.
+- The runtime gate for this round reports 82 checks "covering 21
+  components" against a 32-unit inventory. A component the drive suite
+  never names is unverified by this suite, whatever its unit-test status —
+  this is restated from `component-parity.md`'s re-verification, because a
+  green 82/82 does not by itself mean full-app coverage and should not be
+  read as such.
+
+## Verdict
+
+**Not clean, but improved further.** The one issue this report carried
+forward from the prior pass (the `rake pot` comment) is now closed. Nothing
+new was found this pass. The structural ceiling — a drive suite that is
+real, green, and run live, but does not reach roughly a third of the
+inventoried units — is unchanged and is not this pass's to close.

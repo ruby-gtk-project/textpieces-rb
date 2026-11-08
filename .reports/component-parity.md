@@ -126,3 +126,53 @@ new gap the `gtksourceview5` migration surfaced: two chrome strings for the
 `Adw::ShortcutsDialog` substitution that are permanently untranslatable
 because nothing extracts them into the catalogue. 23/32 units remain
 genuinely unexamined and should not be read as passing.
+
+---
+
+# Re-verification — 2026-11-08
+
+| | |
+|---|---|
+| Upstream | `main` @ `6a6c41e` (unchanged) |
+| Port | `ruby` @ `535b47b` |
+| This pass | confirms the one gap this report raised (the two untranslated
+  `Adw::ShortcutsDialog`/`Adw::AlertDialog` chrome strings) is closed, and
+  re-states what is still unexamined |
+
+## The chrome-string gap: closed
+
+`535b47b` adds both msgids to `po/textpieces.pot`, each with a translator
+comment explaining why upstream has no equivalent:
+
+```
+$ grep -c '"_Close"\|"Keyboard Shortcuts"' po/textpieces.pot
+2
+```
+
+Confirmed by reading the diff: both entries carry `#: lib/shortcuts_window.rb:67`
+/ `#: lib/window.rb:470` references matching the call sites this report
+named. **Closed** — the strings now have a mechanical path to a translator,
+even though no translator has acted on them yet (see
+`.reports/translation-parity.md`'s re-verification for why that remainder is
+expected, not a new gap).
+
+## Still unchecked — unchanged from the prior pass
+
+The prior pass's own accounting stands: **23 of 32 inventory units** have a
+port file and appear in the inventory but have not been compared on any of
+the four axes (count/style/behaviour/text). Nothing in `535b47b` or
+`7aaa797` touches any of those 23 files, and nothing in this pass re-examined
+them. They are listed in full above and are **not** closed by this
+verification pass.
+
+Separately: the runtime gate this round reports 82 checks covering **21**
+components. A component with no check exercising it is unverified, not
+passing — the gap between 21 checked and 32 inventoried units is the same
+gap this report has been carrying since the first pass, just visible now
+from the gate's own numbers rather than only from the inventory.
+
+## Verdict (unchanged)
+
+**Not clean.** One real, re-verified fix landed cleanly. The structural gap —
+roughly two-thirds of the component inventory never compared on any axis — is
+untouched by this round's commits and remains open.

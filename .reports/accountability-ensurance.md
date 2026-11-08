@@ -125,3 +125,77 @@ generic scanner — two real strings that command's absence leaves with no
 path to translation at all. A runtime gate reading "0 failed" says nothing
 about either of these, because neither is a thing any check currently
 looks for.
+
+---
+
+# Re-verification — 2026-11-08
+
+| | |
+|---|---|
+| Port | `ruby` @ `535b47b` |
+
+## Scan, re-run
+
+```sh
+.claude/skills/accountability-ensurance/scripts/find-excuses.sh .
+```
+
+Hits are the same set as before, all inside `.reports/*.md` prose that is
+itself *about* excuse-language (quoting the skill's own construction list,
+or describing the port's own correct upstream-matching "skipped" behaviour)
+— the skill's own stated exception. Re-confirmed by reading each hit's
+context (`component-inventory.md:429,524`, `component-parity.md:92`,
+`accountability-ensurance.md`'s own quoted rule text). No rewrite needed.
+
+```sh
+grep -rniE "TODO|FIXME|not implemented|for now|in a future|not applicable|n/a\b|out of scope|by design|does not carry over|no ruby analogue|dropped deliberately|intentionally omitted|simplified|streamlined" lib/ exe/
+```
+
+Zero hits, unchanged. No `PORTING.md` exists, unchanged.
+
+## This pass's own finding ("a tooling claim describing a task that does not exist"): closed
+
+The prior pass's headline finding — `flake.nix`'s comment claiming a
+`rake pot` task drives `rxgettext` when no such task exists — is fixed in
+`535b47b`. The comment now reads:
+
+```
+# rxgettext, the extractor GNU xgettext's `--language=Ruby` mode
+# shells out to; without it that mode fails outright. No rake
+# task in this repo drives it yet (`po/textpieces.pot` is
+# maintained by hand), but the dev shell carries the tool so one
+# can be added without a second round of Nix wiring.
+```
+
+This is an accurate statement of the current state (confirmed live:
+`rake -T` still has no `pot` task) rather than a claim about a tool that
+doesn't exist. It also does not launder the gap into a false "by design" —
+it says plainly the task does not exist yet, rather than asserting it
+should not exist. **Closed**, and closed correctly: not by deleting the
+comment, but by making it true.
+
+The two strings that gap had left permanently untranslatable
+(`"_Close"`, `"Keyboard Shortcuts"`) are now in `po/textpieces.pot` with
+translator comments naming them as port-introduced, non-upstream strings —
+the honest disclosure this skill asks for, not a silent fix. Verified in
+`.reports/translation-parity.md`'s re-verification section.
+
+## Still open, restated plainly rather than excused
+
+I did not close the "23 of 32 component-parity units never examined on any
+axis" gap this round, and neither did the commits this pass reviewed —
+`535b47b` and `7aaa797` fixed exactly the two items the prior round named
+and touched nothing else. That is not a new finding to invent an excuse
+for; it is the same open debt from the prior round, carried forward rather
+than rounded away. The runtime gate's "82 checks ... covering 21
+components" is not evidence the other units are fine — nobody has looked
+at them yet, and a check that was never written is not a thing that passed.
+
+## Verdict
+
+**Not clean.** No excuse-language gaming in the port's own code or fresh
+excuses in the reports. The two concrete findings this report's prior pass
+raised (the `rake pot` false claim and the two orphaned chrome strings) are
+both genuinely closed, verified live. The large unexamined-component debt
+is untouched by this round and remains the honest reason this port is not
+done.

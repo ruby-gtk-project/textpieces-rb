@@ -97,3 +97,19 @@ unit four-axis comparison — that remains `.reports/component-parity.md`'s
 job — and that report still finds open items, including one new one from
 this round's own code reading (see its ShortcutsDialog chrome-string
 finding).
+
+---
+
+# Re-verification — 2026-11-08
+
+| | |
+|---|---|
+| Upstream | `main` @ `6a6c41e` (unchanged) |
+| Port | `ruby` @ `535b47b` |
+
+`535b47b` and `7aaa797` touch only `flake.nix`, `po/textpieces.pot` and a
+skill script under `.claude/skills/`. No `lib/` or `data/` file was added,
+removed or renamed since the last pass. `find lib -type f` and the
+desktop/metainfo file check both re-confirmed unchanged. The unit count
+remains 32, all present. No new finding for this pass; carried forward
+unchanged.
