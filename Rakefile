@@ -160,6 +160,28 @@ if kettle_jem_selftest_unavailable_note
   end
 end
 
+### TRANSLATION TASKS
+# `rake pot` has no `rxgettext`/meson i18n step to drive (see flake.nix's
+# comment on why): it instead extracts every Translation.t(...)/
+# Translation.tools(...) literal call site under lib/ and exe/ and fails if
+# one has no matching msgid in po/textpieces.pot, catching the class of gap
+# that previously needed manual, file-by-file reading to find.
+desc "Check that every Translation.t/.tools literal has a po/textpieces.pot entry"
+task :pot do
+  require_relative "tasks/pot_check"
+
+  missing = PotCheck.missing
+  if missing.empty?
+    puts "pot: all #{PotCheck.call_sites.size} Translation.t/.tools call sites have a po/textpieces.pot entry"
+  else
+    warn("pot: #{missing.size} call site(s) have no po/textpieces.pot entry:")
+    missing.each do |context, msgid, location|
+      warn("  #{location}: #{context ? "Translation.tools" : "Translation.t"}(#{msgid.inspect})")
+    end
+    abort("rake pot failed")
+  end
+end
+
 ### RELEASE TASKS
 # Setup stone_checksums
 begin
