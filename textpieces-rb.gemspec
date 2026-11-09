@@ -96,15 +96,10 @@ Gem::Specification.new do |spec|
   spec.executables = ["textpieces"]
   spec.require_paths = ["lib"]
 
-  # Runtime toolkit
+  spec.add_dependency("adwaita")
+  spec.add_dependency("ashpd")
   spec.add_dependency("glib2")
   spec.add_dependency("gtk4")
-  spec.add_dependency("adwaita")
-  # The OpenURI portal, for editing a custom tool's script in the user's
-  # external editor (Tool#open, ported from upstream's Xdp.Portal#open_uri).
-  spec.add_dependency("ashpd")
-  # GtkSourceView: the editor's text view/buffer, style schemes and
-  # search context/settings, matching upstream's use of GtkSource.View.
   spec.add_dependency("gtksourceview5")
 
   # NOTE: It is preferable to list development dependencies in the gemspec due to increased
